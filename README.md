@@ -1,7 +1,6 @@
 # obd2-rs
 
-obd2-rs is a pure-Rust OBD-II interface that speaks to ELM327 adapters over a plain serial port: query RPM, speed,
-coolant temperature, fuel status, trouble codes, VIN and 200+ more PIDs.
+obd2-rs is a pure-Rust OBD-II interface that speaks to ELM327-compatible adapters (ELM327, STN1110/STN1170 and clones) over a plain serial port: query RPM, speed, coolant temperature, fuel status, trouble codes, VIN and 200+ more PIDs.
 
 ## Usage
 
