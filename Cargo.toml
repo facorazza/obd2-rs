@@ -1,0 +1,25 @@
+# obd2-rs: OBD-II library for Rust.
+#
+# ELM327 serial driver, OBD-II protocol parsers, command tables and
+# decoders. GPL-3.0-or-later (data tables: MIT).
+
+[package]
+name = "obd2-rs"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "OBD-II library: ELM327 driver, OBD protocols, commands and decoders"
+license = "GPL-3.0-or-later"
+readme = "README.md"
+repository = "https://git.facorazza.com/facorazza/obd2-rs"
+keywords = ["obd", "obd2", "obdii", "elm327", "car"]
+categories = ["embedded", "hardware-support"]
+exclude = [".github/**", ".gitignore"]
+
+[workspace]
+members = ["tools/specs-generator"]
+
+[dependencies]
+tracing = "0.1.44"
+serialport = "4.9.0"
+thiserror = "2.0.20"

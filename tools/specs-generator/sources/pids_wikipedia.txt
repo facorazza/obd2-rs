@@ -1,0 +1,96 @@
+00 | bytes=4 | PIDs supported [$01 - $20] | formula: 
+01 | bytes=4 | Monitor status since DTCs cleared. (Includes malfunction indicator lamp (MIL), status and number of DTCs, components tests, DTC readiness checks) | formula: 
+02 | bytes=2 | DTC that caused freeze frame to be stored. | formula: 
+03 | bytes=2 | Fuel system status | formula: 
+04 | bytes=1 | Calculated engine load | formula: \tfrac{100}{255} A (or \tfrac {A} {2.55})
+05 | bytes=1 | Engine coolant temperature | formula: A - 40
+06 | bytes=1 | Short term fuel trim (STFT)-Bank 1 | formula: rowspan="4" align="left" | \frac{100}{128} A - 100(or \tfrac{A}{1.28} - 100 )
+07 | bytes=1 | Long term fuel trim (LTFT)-Bank 1 | formula: 
+08 | bytes=1 | Short term fuel trim (STFT)-Bank 2 | formula: 
+09 | bytes=1 | Long term fuel trim (LTFT)-Bank 2 | formula: 
+0A | bytes=1 | Fuel pressure (gauge pressure) | formula: 3 A
+0B | bytes=1 | Intake manifold absolute pressure | formula: A
+0C | bytes=2 | Engine speed | formula: \frac{256 A + B}{4}
+0D | bytes=1 | Vehicle speed | formula: A
+0E | bytes=1 | Timing advance | formula: \frac{A}{2} - 64
+0F | bytes=1 | Intake air temperature | formula: A - 40
+10 | bytes=2 | Mass air flow sensor (MAF) air flow rate | formula: \frac{256 A + B}{100}
+11 | bytes=1 | Throttle position | formula: \tfrac{100}{255} A
+12 | bytes=1 | Commanded secondary air status | formula: 
+13 | bytes=1 | Oxygen sensors present (in 2 banks) | formula: 
+14 | bytes=2 | Oxygen Sensor 1A: VoltageB: Short term fuel trim | formula: rowspan="8" align="left" | \frac{A}{200}\frac{100}{128} B - 100(if B==$FF, sensor is not used in trim calculation)
+15 | bytes=2 | Oxygen Sensor 2A: VoltageB: Short term fuel trim | formula: 
+16 | bytes=2 | Oxygen Sensor 3A: VoltageB: Short term fuel trim | formula: 
+17 | bytes=2 | Oxygen Sensor 4A: VoltageB: Short term fuel trim | formula: 
+18 | bytes=2 | Oxygen Sensor 5A: VoltageB: Short term fuel trim | formula: 
+19 | bytes=2 | Oxygen Sensor 6A: VoltageB: Short term fuel trim | formula: 
+1A | bytes=2 | Oxygen Sensor 7A: VoltageB: Short term fuel trim | formula: 
+1B | bytes=2 | Oxygen Sensor 8A: VoltageB: Short term fuel trim | formula: 
+1C | bytes=1 | OBD standards this vehicle conforms to | formula: 
+1D | bytes=1 | Oxygen sensors present (in 4 banks) | formula: 
+1E | bytes=1 | Auxiliary input status | formula: 
+1F | bytes=2 | Run time since engine start | formula: 256 A + B
+20 | bytes=4 | PIDs supported [$21 - $40] | formula: 
+21 | bytes=2 | Distance traveled with malfunction indicator lamp (MIL) on | formula: 256 A + B
+22 | bytes=2 | Fuel Rail Pressure (relative to manifold vacuum) | formula: 0.079 (256 A + B)
+23 | bytes=2 | Fuel Rail Gauge Pressure (diesel, or gasoline direct injection) | formula: 10 (256 A + B)
+24 | bytes=4 | Oxygen Sensor 1AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Voltage | formula: rowspan="8" align="left" | \frac{2}{65536} (256 A + B)\frac{8}{65536} (256 C + D)
+25 | bytes=4 | Oxygen Sensor 2AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Voltage | formula: 
+26 | bytes=4 | Oxygen Sensor 3AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Voltage | formula: 
+27 | bytes=4 | Oxygen Sensor 4AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Voltage | formula: 
+28 | bytes=4 | Oxygen Sensor 5AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Voltage | formula: 
+29 | bytes=4 | Oxygen Sensor 6AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Voltage | formula: 
+2A | bytes=4 | Oxygen Sensor 7AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Voltage | formula: 
+2B | bytes=4 | Oxygen Sensor 8AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Voltage | formula: 
+2C | bytes=1 | Commanded EGR | formula: \tfrac{100}{255} A
+2D | bytes=1 | EGR Error | formula: \tfrac{100}{128} A - 100
+2E | bytes=1 | Commanded evaporative purge | formula: \tfrac{100}{255} A
+2F | bytes=1 | Fuel Tank Level Input | formula: \tfrac{100}{255} A
+30 | bytes=1 | Warm-ups since codes cleared | formula: 
+31 | bytes=2 | Distance traveled since codes cleared | formula: 256 A + B
+32 | bytes=2 | Evap. System Vapor Pressure | formula: \frac{256 A + B}{4}
+33 | bytes=1 | Absolute Barometric Pressure | formula: A
+34 | bytes=4 | Oxygen Sensor 1AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Current | formula: rowspan="8" align="left" | \frac{2}{65536} (256 A + B)\frac{256 C + D}{256} - 128
+35 | bytes=4 | Oxygen Sensor 2AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Current | formula: 
+36 | bytes=4 | Oxygen Sensor 3AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Current | formula: 
+37 | bytes=4 | Oxygen Sensor 4AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Current | formula: 
+38 | bytes=4 | Oxygen Sensor 5AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Current | formula: 
+39 | bytes=4 | Oxygen Sensor 6AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Current | formula: 
+3A | bytes=4 | Oxygen Sensor 7AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Current | formula: 
+3B | bytes=4 | Oxygen Sensor 8AB: Air-Fuel Equivalence Ratio (lambda,λ)CD: Current | formula: 
+3C | bytes=2 | Catalyst Temperature: Bank 1, Sensor 1 | formula: rowspan="4" align="left" | \frac{256 A + B}{10} - 40
+3D | bytes=2 | Catalyst Temperature: Bank 2, Sensor 1 | formula: 
+3E | bytes=2 | Catalyst Temperature: Bank 1, Sensor 2 | formula: 
+3F | bytes=2 | Catalyst Temperature: Bank 2, Sensor 2 | formula: 
+40 | bytes=4 | PIDs supported [$41 - $60] | formula: 
+41 | bytes=4 | Monitor status this drive cycle | formula: 
+42 | bytes=2 | Control module voltage | formula: \frac{256A + B}{1000}
+43 | bytes=2 | Absolute load value | formula: \tfrac{100}{255} (256A + B)
+44 | bytes=2 | Commanded Air-Fuel Equivalence Ratio (lambda,λ) | formula: \tfrac{2}{65536} (256 A + B)
+45 | bytes=1 | Relative throttle position | formula: \tfrac{100}{255} A
+46 | bytes=1 | Ambient air temperature | formula: A - 40
+47 | bytes=1 | Absolute throttle position B | formula: rowspan="6" align="left" |\frac{100}{255} A
+48 | bytes=1 | Absolute throttle position C | formula: 
+49 | bytes=1 | Accelerator pedal position D | formula: 
+4A | bytes=1 | Accelerator pedal position E | formula: 
+4B | bytes=1 | Accelerator pedal position F | formula: 
+4C | bytes=1 | Commanded throttle actuator | formula: 
+4D | bytes=2 | Time run with MIL on | formula: rowspan="2" align="left" |256 A + B
+4E | bytes=2 | Time since trouble codes cleared | formula: 
+4F | bytes=4 | Maximum value for Fuel–Air equivalence ratio, oxygen sensor voltage, oxygen sensor current, and intake manifold absolute pressure | formula: A, B, C, D \times 10
+50 | bytes=4 | Maximum value for air flow rate from mass air flow sensor | formula: A \times 10; B, C, and D are reserved for future use
+51 | bytes=1 | Fuel Type | formula: 
+52 | bytes=1 | Ethanol fuel % | formula: \tfrac{100}{255} A
+53 | bytes=2 | Absolute Evap system Vapor Pressure | formula: \frac{256A + B}{200}
+54 | bytes=2 | Evap system vapor pressure | formula: 256 A + B(AB is two's complement signed)
+55 | bytes=2 | Short term secondary oxygen sensor trim, A: bank 1, B: bank 3 | formula: rowspan="4" align="left" | \frac{100}{128}A - 100
+56 | bytes=2 | Long term secondary oxygen sensor trim, A: bank 1, B: bank 3 | formula: 
+57 | bytes=2 | Short term secondary oxygen sensor trim, A: bank 2, B: bank 4 | formula: 
+58 | bytes=2 | Long term secondary oxygen sensor trim, A: bank 2, B: bank 4 | formula: 
+59 | bytes=2 | Fuel rail absolute pressure | formula: 10 (256 A + B)
+5A | bytes=1 | Relative accelerator pedal position | formula: \tfrac{100}{255} A
+5B | bytes=1 | Hybrid battery pack remaining life | formula: \tfrac{100}{255} A
+5C | bytes=1 | Engine oil temperature | formula: A - 40
+5D | bytes=2 | Fuel injection timing | formula: \frac{256A + B}{128} - 210
+5E | bytes=2 | Engine fuel rate | formula: \frac{256A + B}{20}
+5F | bytes=1 | Emission requirements to which vehicle is designed | formula: 

@@ -1,0 +1,71 @@
+# CI for the obd2-rs library.
+#
+# Runs on GitHub Actions and Gitea Actions (needs a registered runner on the
+# Gitea instance). The job runs in the rust:1-trixie container.
+
+name: ci
+
+on:
+  push:
+    paths:
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/**"
+  pull_request:
+    paths:
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: rust:1-trixie
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libudev-dev pkg-config
+
+      - name: Install rustfmt and clippy
+        run: rustup component add rustfmt clippy
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Test
+        run: cargo test
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Release build
+        run: cargo build --release
+
+      - name: Package
+        run: cargo package
+
+      - name: Upload crate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: obd2-rs
+          path: target/package/obd2-rs-*.crate
+          if-no-files-found: error
+          retention-days: 14
