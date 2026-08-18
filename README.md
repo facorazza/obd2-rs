@@ -1,9 +1,7 @@
 # obd2-rs
 
-Talk to your car's ECU from Rust. obd2-rs is a pure-Rust OBD-II interface
-that speaks to ELM327 adapters over a plain serial port: query RPM, speed,
-coolant temperature, fuel status, trouble codes, VIN and 200+ more PIDs —
-no C dependencies, no embedded hardware required beyond the $10 dongle.
+obd2-rs is a pure-Rust OBD-II interface that speaks to ELM327 adapters over a plain serial port: query RPM, speed,
+coolant temperature, fuel status, trouble codes, VIN and 200+ more PIDs.
 
 ## Usage
 
