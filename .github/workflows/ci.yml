@@ -1,7 +1,4 @@
 # CI for the obd2-rs library.
-#
-# Runs on GitHub Actions and Gitea Actions (needs a registered runner on the
-# Gitea instance). The job runs in the rust:1-trixie container.
 
 name: ci
 
