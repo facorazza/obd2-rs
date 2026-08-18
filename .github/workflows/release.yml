@@ -1,8 +1,4 @@
 # Publish obd2-rs to crates.io on version tags.
-#
-# Runs on GitHub Actions and Gitea Actions. Requires a crates.io API token in
-# the repository secret CARGO_REGISTRY_TOKEN (GitHub: Settings -> Secrets;
-# Gitea: Settings -> Actions -> Secrets).
 
 name: release
 
