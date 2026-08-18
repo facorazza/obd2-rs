@@ -5,13 +5,13 @@
 
 [package]
 name = "obd2-rs"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.85"
 description = "OBD-II library: ELM327 driver, OBD protocols, commands and decoders"
 license = "GPL-3.0-or-later"
 readme = "README.md"
-repository = "https://git.facorazza.com/facorazza/obd2-rs"
+repository = "https://github.com/facorazza/obd2-rs"
 keywords = ["obd", "obd2", "obdii", "elm327", "car"]
 categories = ["embedded", "hardware-support"]
 exclude = [".github/**", ".gitignore"]
@@ -20,6 +20,6 @@ exclude = [".github/**", ".gitignore"]
 members = ["tools/specs-generator"]
 
 [dependencies]
+thiserror = "2.0.20"
 tracing = "0.1.44"
 serialport = "4.9.0"
-thiserror = "2.0.20"
