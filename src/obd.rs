@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use crate::command::{OBDCommand, OBDResponse};
 use crate::commands;
-use crate::decoder::Value;
+use crate::decoder::{Dtc, Value};
 use crate::elm327::ELM327;
 use crate::message::ecu_header;
 use crate::util::{OBDStatus, scan_serial};
@@ -338,6 +338,49 @@ impl OBD {
         cmd.call(&messages) // compute a response object
     }
 
+    /// Reads the stored diagnostic trouble codes (Mode 03).
+    ///
+    /// Each entry is `(code, description)`, for example
+    /// `("P0133", "O2 Sensor Circuit Slow Response (Bank 1, Sensor 1)")`.
+    /// An empty list means no codes are stored, not that the query failed.
+    pub fn stored_dtcs(&mut self) -> Vec<Dtc> {
+        self.dtcs("GET_DTC")
+    }
+
+    /// Reads the pending codes from the current or last driving cycle
+    /// (Mode 07).
+    pub fn pending_dtcs(&mut self) -> Vec<Dtc> {
+        self.dtcs("GET_CURRENT_DTC")
+    }
+
+    /// Reads the permanent codes (Mode 0A).
+    ///
+    /// Permanent codes cannot be erased by Mode 04; they clear once the ECU
+    /// has verified the fault is gone. ECUs that predate Mode 0A answer
+    /// `NO DATA`, which yields an empty list.
+    pub fn permanent_dtcs(&mut self) -> Vec<Dtc> {
+        self.dtcs("GET_PERMANENT_DTC")
+    }
+
+    /// Erases the stored codes and freeze-frame data (Mode 04).
+    ///
+    /// Returns `true` when the adapter acknowledged the command. Clearing
+    /// also resets the readiness monitors, so callers should only do it on
+    /// explicit request.
+    pub fn clear_dtcs(&mut self) -> bool {
+        let cmd = commands::by_name("CLEAR_DTC").expect("CLEAR_DTC is a base command");
+        !self.query(cmd, false).messages.is_empty()
+    }
+
+    /// Runs a Mode 03/07/0A command and returns its codes.
+    fn dtcs(&mut self, name: &str) -> Vec<Dtc> {
+        let cmd = commands::by_name(name).expect("DTC command is in the base set");
+        match self.query(cmd, false).value {
+            Some(Value::Dtcs(codes)) => codes,
+            _ => Vec::new(),
+        }
+    }
+
     /// Assembles the appropriate command string.
     fn build_command_string(&self, cmd: &'static OBDCommand) -> Vec<u8> {
         let mut cmd_string = cmd.command.to_vec();
@@ -519,6 +562,28 @@ mod tests {
         let mut obd = obd_with(fake_elm(script, CanProtocol::Iso15765411bit500k));
         let r = obd.query(rpm, true);
         assert!(!r.is_null());
+    }
+
+    #[test]
+    fn reads_and_clears_dtcs() {
+        let script = vec![
+            // stored: count 2, P0101 + P0102
+            b"7E8 06 43 02 01 01 01 02\r\r>".to_vec(),
+            // pending: P0301
+            b"7E8 04 47 01 03 01\r\r>".to_vec(),
+            // permanent: U0101
+            b"7E8 04 4A 01 C1 01\r\r>".to_vec(),
+            // clear acknowledged
+            b"7E8 01 44\r\r>".to_vec(),
+        ];
+        let mut obd = obd_with(fake_elm(script, CanProtocol::Iso15765411bit500k));
+
+        let codes =
+            |dtcs: Vec<Dtc>| -> Vec<String> { dtcs.into_iter().map(|(code, _)| code).collect() };
+        assert_eq!(codes(obd.stored_dtcs()), ["P0101", "P0102"]);
+        assert_eq!(codes(obd.pending_dtcs()), ["P0301"]);
+        assert_eq!(codes(obd.permanent_dtcs()), ["U0101"]);
+        assert!(obd.clear_dtcs());
     }
 
     #[test]

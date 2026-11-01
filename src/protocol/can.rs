@@ -2,6 +2,8 @@
 //!
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use obd2_core::ProtocolId;
+
 use crate::message::{Frame, FrameType, Message, ProtocolParser};
 use crate::protocol::decode_hex;
 use crate::util::contiguous;
@@ -25,27 +27,25 @@ impl CanProtocol {
             | CanProtocol::SaeJ1939 => 29,
         }
     }
+
+    const fn protocol_id(self) -> ProtocolId {
+        match self {
+            CanProtocol::Iso15765411bit500k => ProtocolId::ISO_15765_4_11BIT_500K,
+            CanProtocol::Iso15765429bit500k => ProtocolId::ISO_15765_4_29BIT_500K,
+            CanProtocol::Iso15765411bit250k => ProtocolId::ISO_15765_4_11BIT_250K,
+            CanProtocol::Iso15765429bit250k => ProtocolId::ISO_15765_4_29BIT_250K,
+            CanProtocol::SaeJ1939 => ProtocolId::SAE_J1939,
+        }
+    }
 }
 
 impl ProtocolParser for CanProtocol {
     fn elm_name(&self) -> &'static str {
-        match self {
-            CanProtocol::Iso15765411bit500k => "ISO 15765-4 (CAN 11/500)",
-            CanProtocol::Iso15765429bit500k => "ISO 15765-4 (CAN 29/500)",
-            CanProtocol::Iso15765411bit250k => "ISO 15765-4 (CAN 11/250)",
-            CanProtocol::Iso15765429bit250k => "ISO 15765-4 (CAN 29/250)",
-            CanProtocol::SaeJ1939 => "SAE J1939 (CAN 29/250)",
-        }
+        self.protocol_id().elm_name()
     }
 
     fn elm_id(&self) -> &'static str {
-        match self {
-            CanProtocol::Iso15765411bit500k => "6",
-            CanProtocol::Iso15765429bit500k => "7",
-            CanProtocol::Iso15765411bit250k => "8",
-            CanProtocol::Iso15765429bit250k => "9",
-            CanProtocol::SaeJ1939 => "A",
-        }
+        self.protocol_id().elm_id()
     }
 
     fn tx_id_engine(&self) -> Option<u32> {

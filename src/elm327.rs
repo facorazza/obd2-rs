@@ -8,14 +8,12 @@
 
 use std::time::Duration;
 
+use obd2_core::ProtocolId;
+use obd2_core::reply::{ElmResponse, Feed, InitCommand, InitOptions, Overflow};
+
 use crate::message::{Message, Protocol, ProtocolParser};
 use crate::protocol::{CanProtocol, LegacyProtocol, UnknownProtocol};
 use crate::util::OBDStatus;
-
-/// The ELM prompt character.
-pub const ELM_PROMPT: &[u8] = b">";
-/// An 'OK' which indicates we are entering low power state.
-pub const ELM_LP_ACTIVE: &[u8] = b"OK";
 
 /// 38400, 9600 are the possible boot bauds (unless reprogrammed via
 /// PP 0C). 19200, 38400, 57600, 115200, 230400, 500000 are listed on
@@ -40,22 +38,19 @@ pub const TRY_PROTOCOL_ORDER: [&str; 10] = [
     "A", // SAE_J1939
 ];
 
-/// The ELM protocol IDs this library understands.
-const SUPPORTED_PROTOCOLS: [&str; 10] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "A"];
-
 /// Returns the parser for an ELM protocol ID.
 fn protocol_parser(elm_id: &str) -> Box<dyn ProtocolParser> {
-    match elm_id {
-        "1" => Box::new(LegacyProtocol::SaeJ1850Pwm),
-        "2" => Box::new(LegacyProtocol::SaeJ1850Vpw),
-        "3" => Box::new(LegacyProtocol::Iso91412),
-        "4" => Box::new(LegacyProtocol::Iso1423045baud),
-        "5" => Box::new(LegacyProtocol::Iso142304Fast),
-        "6" => Box::new(CanProtocol::Iso15765411bit500k),
-        "7" => Box::new(CanProtocol::Iso15765429bit500k),
-        "8" => Box::new(CanProtocol::Iso15765411bit250k),
-        "9" => Box::new(CanProtocol::Iso15765429bit250k),
-        "A" => Box::new(CanProtocol::SaeJ1939),
+    match ProtocolId::parse(elm_id) {
+        Some(ProtocolId::SAE_J1850_PWM) => Box::new(LegacyProtocol::SaeJ1850Pwm),
+        Some(ProtocolId::SAE_J1850_VPW) => Box::new(LegacyProtocol::SaeJ1850Vpw),
+        Some(ProtocolId::ISO_9141_2) => Box::new(LegacyProtocol::Iso91412),
+        Some(ProtocolId::ISO_14230_4_5BAUD) => Box::new(LegacyProtocol::Iso1423045baud),
+        Some(ProtocolId::ISO_14230_4_FAST) => Box::new(LegacyProtocol::Iso142304Fast),
+        Some(ProtocolId::ISO_15765_4_11BIT_500K) => Box::new(CanProtocol::Iso15765411bit500k),
+        Some(ProtocolId::ISO_15765_4_29BIT_500K) => Box::new(CanProtocol::Iso15765429bit500k),
+        Some(ProtocolId::ISO_15765_4_11BIT_250K) => Box::new(CanProtocol::Iso15765411bit250k),
+        Some(ProtocolId::ISO_15765_4_29BIT_250K) => Box::new(CanProtocol::Iso15765429bit250k),
+        Some(ProtocolId::SAE_J1939) => Box::new(CanProtocol::SaeJ1939),
         _ => Box::new(UnknownProtocol),
     }
 }
@@ -214,37 +209,29 @@ impl ELM327 {
             return elm;
         }
 
-        // ATZ (reset)
-        // return data can be junk, so don't bother checking
-        if let Err(e) = elm.send(b"ATZ", Some(Duration::from_secs(1)), ELM_PROMPT) {
-            elm.error(e.to_string());
-            return elm;
-        }
-
-        // ATE0 (echo OFF)
-        match elm.send(b"ATE0", None, ELM_PROMPT) {
-            Ok(r) if is_ok(&r, true) => {}
-            _ => {
-                elm.error("ATE0 did not return 'OK'");
-                return elm;
-            }
-        }
-
-        // ATH1 (headers ON)
-        match elm.send(b"ATH1", None, ELM_PROMPT) {
-            Ok(r) if is_ok(&r, false) => {}
-            _ => {
-                elm.error("ATH1 did not return 'OK', or echoing is still ON");
-                return elm;
-            }
-        }
-
-        // ATL0 (linefeeds OFF)
-        match elm.send(b"ATL0", None, ELM_PROMPT) {
-            Ok(r) if is_ok(&r, false) => {}
-            _ => {
-                elm.error("ATL0 did not return 'OK'");
-                return elm;
+        let options = InitOptions {
+            reset: true,
+            echo: false,
+            linefeeds: false,
+            spaces: true,
+            headers: true,
+            protocol: None,
+        };
+        for command in options.commands() {
+            let cmd = command.render();
+            let delay = command.needs_delay().then(|| Duration::from_secs(1));
+            match elm.send(cmd.as_bytes(), delay) {
+                Ok(lines)
+                    if command.is_lenient()
+                        || is_ok(&lines, matches!(command, InitCommand::Echo(false))) => {}
+                Ok(_) => {
+                    elm.error(format!("{cmd} did not return 'OK'"));
+                    return elm;
+                }
+                Err(e) => {
+                    elm.error(e.to_string());
+                    return elm;
+                }
             }
         }
 
@@ -253,18 +240,12 @@ impl ELM327 {
 
         // AT RV (read volt)
         if check_voltage {
-            match elm.send(b"AT RV", None, ELM_PROMPT) {
+            match elm.send(b"AT RV", None) {
                 Ok(r) if r.len() == 1 && !r[0].is_empty() => {
-                    let volts: f64 = r[0]
-                        .to_lowercase()
-                        .replace('v', "")
-                        .trim()
-                        .parse()
-                        .unwrap_or(f64::NAN);
-                    if volts.is_nan() {
+                    let Some(volts) = obd2_core::parse::voltage(&r[0]) else {
                         elm.error("Incorrect response from 'AT RV'");
                         return elm;
-                    }
+                    };
                     if volts < 6.0 {
                         tracing::error!("OBD2 socket disconnected");
                         return elm;
@@ -339,7 +320,7 @@ impl ELM327 {
         }
 
         let lines = self
-            .send(b"ATLP", Some(Duration::from_secs(1)), ELM_LP_ACTIVE)
+            .send(b"ATLP", Some(Duration::from_secs(1)))
             .unwrap_or_default();
 
         if has_message(&lines, "OK") {
@@ -362,7 +343,7 @@ impl ELM327 {
             return None;
         }
 
-        let lines = self.send(b" ", None, ELM_PROMPT).unwrap_or_default();
+        let lines = self.send(b" ", None).unwrap_or_default();
 
         // assume we woke up
         tracing::debug!("Successfully exited low power mode");
@@ -401,7 +382,7 @@ impl ELM327 {
             self.normal_power();
         }
 
-        let lines = match self.send(cmd, None, ELM_PROMPT) {
+        let lines = match self.send(cmd, None) {
             Ok(lines) => lines,
             Err(e) => {
                 tracing::error!("{e}");
@@ -416,7 +397,7 @@ impl ELM327 {
     fn set_protocol(&mut self, protocol: Option<&str>) -> bool {
         match protocol {
             Some(p) => {
-                if !SUPPORTED_PROTOCOLS.contains(&p) {
+                if ProtocolId::parse(p).is_none() {
                     tracing::error!("{p} is not a valid protocol. Please use \"1\" through \"A\"");
                     return false;
                 }
@@ -427,8 +408,8 @@ impl ELM327 {
     }
 
     fn manual_protocol(&mut self, protocol: &str) -> bool {
-        let _ = self.send(format!("ATTP{protocol}").as_bytes(), None, ELM_PROMPT);
-        let r0100 = self.send(b"0100", None, ELM_PROMPT).unwrap_or_default();
+        let _ = self.send(format!("ATTP{protocol}").as_bytes(), None);
+        let r0100 = self.send(b"0100", None).unwrap_or_default();
 
         if !has_message(&r0100, "UNABLE TO CONNECT") {
             // success, found the protocol
@@ -444,12 +425,9 @@ impl ELM327 {
     /// If no protocol is specified, protocols are tried with `ATTP`.
     /// Upon success, the appropriate protocol parser is loaded.
     fn auto_protocol(&mut self) -> bool {
-        // try the ELM's auto protocol mode
-        let _ = self.send(b"ATSP0", Some(Duration::from_secs(1)), ELM_PROMPT);
-
-        // 0100 (first command, SEARCH protocols)
+        // ATSP0 was already sent by the init sequence.
         let r0100 = self
-            .send(b"0100", Some(Duration::from_secs(1)), ELM_PROMPT)
+            .send(b"0100", Some(Duration::from_secs(1)))
             .unwrap_or_default();
         if has_message(&r0100, "UNABLE TO CONNECT") {
             tracing::error!("Failed to query protocol 0100: unable to connect");
@@ -457,30 +435,25 @@ impl ELM327 {
         }
 
         // ATDPN (list protocol number)
-        let r = self.send(b"ATDPN", None, ELM_PROMPT).unwrap_or_default();
+        let r = self.send(b"ATDPN", None).unwrap_or_default();
         if r.len() != 1 {
             tracing::error!("Failed to retrieve current protocol");
             return false;
         }
 
-        let mut p = r[0].clone();
-        // suppress any "automatic" prefix
-        if p.len() > 1 && p.starts_with('A') {
-            p = p[1..].to_string();
-        }
-
-        // check if the protocol is something we know
-        if SUPPORTED_PROTOCOLS.contains(&p.as_str()) {
-            // jackpot, instantiate the corresponding protocol handler
-            self.protocol = Protocol::new(protocol_parser(&p), &r0100);
-            return true;
+        // check if the protocol is something we have a parser for
+        if let Some(id) = ProtocolId::from_atdpn(&r[0]) {
+            if !matches!(id.elm_id(), "B" | "C") {
+                self.protocol = Protocol::new(protocol_parser(id.elm_id()), &r0100);
+                return true;
+            }
         }
 
         // an unknown protocol; try them one-by-one
         tracing::debug!("ELM responded with unknown protocol. Trying them one-by-one");
         for p in TRY_PROTOCOL_ORDER {
-            let _ = self.send(format!("ATTP{p}").as_bytes(), None, ELM_PROMPT);
-            let r0100 = self.send(b"0100", None, ELM_PROMPT).unwrap_or_default();
+            let _ = self.send(format!("ATTP{p}").as_bytes(), None);
+            let r0100 = self.send(b"0100", None).unwrap_or_default();
             if !has_message(&r0100, "UNABLE TO CONNECT") {
                 // success, found the protocol
                 self.protocol = Protocol::new(protocol_parser(p), &r0100);
@@ -561,14 +534,8 @@ impl ELM327 {
     }
 
     /// Unprotected send: writes the given string, then reads until the
-    /// end marker (by default, the prompt) is seen, after an optional
-    /// delay.
-    fn send(
-        &mut self,
-        cmd: &[u8],
-        delay: Option<Duration>,
-        end_marker: &[u8],
-    ) -> Result<Vec<String>, ElmError> {
+    /// prompt is seen, after an optional delay.
+    fn send(&mut self, cmd: &[u8], delay: Option<Duration>) -> Result<Vec<String>, ElmError> {
         self.write_raw(cmd);
 
         let mut delayed = Duration::ZERO;
@@ -578,13 +545,13 @@ impl ELM327 {
             delayed += d;
         }
 
-        let mut r = self.read_until(end_marker);
+        let mut r = self.read_until();
         while delayed < Duration::from_secs(1) && r.is_empty() {
             let d = Duration::from_millis(100);
             tracing::debug!("no response; wait: {} seconds", d.as_secs_f64());
             std::thread::sleep(d);
             delayed += d;
-            r = self.read_until(end_marker);
+            r = self.read_until();
         }
         Ok(r)
     }
@@ -614,16 +581,15 @@ impl ELM327 {
         }
     }
 
-    /// "Low-level" read: accumulates characters until the end marker
-    /// (by default, the prompt character) is seen. Returns a list of
-    /// line strings.
-    fn read_until(&mut self, end_marker: &[u8]) -> Vec<String> {
+    /// "Low-level" read: accumulates characters until the prompt is seen
+    /// and returns the reply lines.
+    fn read_until(&mut self) -> Vec<String> {
         let Some(port) = self.port.as_mut() else {
             tracing::info!("cannot perform read when unconnected");
             return Vec::new();
         };
 
-        let mut buffer: Vec<u8> = Vec::new();
+        let mut response = ElmResponse::<4096>::new();
 
         loop {
             // retrieve as much data as possible
@@ -645,32 +611,18 @@ impl ELM327 {
                 break;
             }
 
-            buffer.extend_from_slice(&chunk[..n]);
-
-            // end on specified end-marker sequence
-            if buffer.windows(end_marker.len()).any(|w| w == end_marker) {
-                break;
+            match response.feed(&chunk[..n], b'>') {
+                Ok(Feed::Complete) => break,
+                Ok(Feed::Pending) => {}
+                Err(Overflow) => {
+                    tracing::warn!("reply did not fit in the read buffer");
+                    break;
+                }
             }
         }
 
-        tracing::debug!("read: {:?}", String::from_utf8_lossy(&buffer));
-
-        // clean out any null characters
-        buffer.retain(|b| *b != 0);
-
-        // remove the prompt character
-        if buffer.ends_with(ELM_PROMPT) {
-            buffer.truncate(buffer.len() - 1);
-        }
-
-        // convert bytes into a standard string, split into lines while
-        // removing empty lines and trailing spaces
-        String::from_utf8_lossy(&buffer)
-            .split(['\r', '\n'])
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(str::to_string)
-            .collect()
+        tracing::debug!("read: {:?}", response.raw());
+        response.lines().map(str::to_string).collect()
     }
 
     /// Handles fatal failures: closes the serial port and logs.
@@ -807,7 +759,7 @@ pub(crate) mod tests {
             timeout: Duration::from_secs(1),
         };
 
-        let lines = elm.read_until(ELM_PROMPT);
+        let lines = elm.read_until();
         assert_eq!(lines, vec!["OK".to_string()]);
     }
 
@@ -821,7 +773,7 @@ pub(crate) mod tests {
             timeout: Duration::from_secs(1),
         };
 
-        let lines = elm.read_until(ELM_PROMPT);
+        let lines = elm.read_until();
         assert_eq!(lines, vec!["ATZ".to_string()]);
     }
 
@@ -851,7 +803,7 @@ pub(crate) mod tests {
             timeout: Duration::from_secs(1),
         };
 
-        let lines = elm.send(b"ATE0", None, ELM_PROMPT).unwrap();
+        let lines = elm.send(b"ATE0", None).unwrap();
         assert_eq!(lines, vec!["OK".to_string()]);
     }
 

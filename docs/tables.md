@@ -11,7 +11,7 @@ tools/specs-generator/sources/   (raw public references, committed)
         |
         |  specs-generator   (parses sources, applies SAE J1979 formulas)
         v
-src/commands_table.rs   (modes 01/02/03/04/06/07/09 + ELM327 commands)
+src/commands_table.rs   (modes 01/02/03/04/06/07/09/0A + ELM327 commands)
 src/dtc_table.rs        (DTC code -> description)
 ```
 
@@ -109,9 +109,11 @@ Derived from mode 01: same PIDs with
 | 0xB0-0xB1 | PM filter, per bank |
 | 0x00/0x20/0x40/0x60/0x80/0xA0 | Supported-MID queries |
 
-### Modes 03/04/07 and 09
+### Modes 03/04/07/0A and 09
 
-- 03/04/07: single fixed commands (`GET_DTC`, `CLEAR_DTC`, `GET_CURRENT_DTC`).
+- 03/04/07/0A: single fixed commands (`GET_DTC`, `CLEAR_DTC`,
+  `GET_CURRENT_DTC`, `GET_PERMANENT_DTC`). Mode 0A permanent codes cannot be
+  erased with Mode 04.
 - 09: `specs-generator` defines the seven standard PIDs (supported-PIDs,
   VIN message count, VIN, calibration ID count, calibration ID, CVN count,
   CVN) with their SAE J1979 byte counts.

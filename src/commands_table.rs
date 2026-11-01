@@ -3011,6 +3011,17 @@ pub const MODE9: &[Option<OBDCommand>] = &[
     }),
 ];
 
+pub const MODE10: &[Option<OBDCommand>] = &[Some(OBDCommand {
+    name: "GET_PERMANENT_DTC",
+    desc: "Get permanent DTCs",
+    command: b"0A",
+    bytes: 0,
+    decoder: Decoder::Dtc,
+    ecu: ecu::ALL,
+    fast: false,
+    header: b"7E0",
+})];
+
 pub const MISC: &[Option<OBDCommand>] = &[
     Some(OBDCommand {
         name: "ELM_VERSION",

@@ -10,6 +10,7 @@ use crate::codes;
 use crate::message::Message;
 use crate::units::{self, UasValue, Unit};
 use crate::util::{BitArray, bytes_to_hex, bytes_to_int, twos_comp};
+use obd2_core::{DtcCode, parse};
 use std::collections::BTreeMap;
 
 /// A decoded OBD response value.
@@ -397,10 +398,9 @@ pub fn aux_input_status(messages: &[Message]) -> Value {
 /// ELM supply voltage, parsed from the raw `AT RV` response.
 pub fn elm_voltage(messages: &[Message]) -> Value {
     let raw = &messages[0].frames[0].raw;
-    let v = raw.to_lowercase().replace('v', "");
-    match v.trim().parse::<f64>() {
-        Ok(v) => Value::Quantity(v, Unit::Volt),
-        Err(_) => {
+    match parse::voltage(raw) {
+        Some(v) => Value::Quantity(f64::from(v), Unit::Volt),
+        None => {
             tracing::warn!("Failed to parse ELM voltage");
             Value::None
         }
@@ -520,23 +520,13 @@ pub fn fuel_type(messages: &[Message]) -> Value {
 ///
 /// Returns `None` for invalid codes (also ignores the ELM's padding).
 pub fn parse_dtc(bytes: &[u8]) -> Option<Dtc> {
-    if bytes.len() != 2 || (bytes[0] == 0 && bytes[1] == 0) {
+    if bytes.len() != 2 {
         return None;
     }
-
-    //  BYTES: (16,      35      )
-    //  HEX:    4   1    2   3
-    //  BIN:    01000001 00100011
-    //          [][][  in hex   ]
-    //          | / /
-    //  DTC:    C0123
-    let family = ["P", "C", "B", "U"][usize::from(bytes[0] >> 6)];
-    let sub = (bytes[0] >> 4) & 0b0011;
-    let hex = bytes_to_hex(bytes);
-    let code = format!("{family}{sub}{}", &hex[1..4]);
-
-    let desc = crate::dtc_table::lookup(&code).unwrap_or("");
-    Some((code, desc.to_string()))
+    let code = DtcCode::from_bytes(bytes[0], bytes[1])?;
+    let code = code.as_str().to_string();
+    let desc = crate::dtc_table::lookup(&code).unwrap_or("").to_string();
+    Some((code, desc))
 }
 
 /// A single DTC from a message.

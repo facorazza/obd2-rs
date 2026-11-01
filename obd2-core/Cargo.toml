@@ -1,0 +1,18 @@
+# obd2-core: allocation-free OBD-II / ELM327 primitives.
+#
+# The parts of obd2-rs that do not need std or a serial port live here so
+# embedded targets can share the same reply, PID and DTC parsers.
+
+[package]
+name = "obd2-core"
+version = "0.1.1"
+edition = "2024"
+rust-version = "1.87"
+description = "Allocation-free OBD-II / ELM327 reply, PID and DTC parsing"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/facorazza/obd2-rs"
+keywords = ["obd", "obd2", "obdii", "elm327", "no-std"]
+categories = ["embedded", "hardware-support", "no-std"]
+
+[dependencies]
+heapless = "0.9.3"

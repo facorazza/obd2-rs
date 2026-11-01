@@ -38,10 +38,22 @@ if obd.is_connected() {
 - Protocol parsers for ELM protocol IDs `1`–`A` (SAE J1850 PWM/VPW, ISO
   9141-2, ISO 14230-4, ISO 15765-4 CAN 11/29-bit, SAE J1939) plus an
   unknown-protocol fallback
-- 200+ OBD commands (modes 1–9) with generated command and DTC tables
+- 200+ OBD commands (modes 1–9, plus Mode 0A permanent DTCs) with generated
+  command and DTC tables
 - All standard decoders: scalars, UAS-scaled values, status/monitor trees,
   DTCs, VIN, fuel status
 - `query` / `supported_commands` / `supports` high-level API
+- `stored_dtcs` / `pending_dtcs` / `permanent_dtcs` / `clear_dtcs` helpers
+
+## no_std core
+
+`obd2-core` holds the allocation-free half of the library: ELM reply framing
+(`ElmResponse`, `InitOptions`), Mode 1 reply parsing, Mode 03/07/0A DTC
+decoding, supported-PID bitmaps and protocol identification. It has no `std`
+or serial dependency and is re-exported as
+`obd2_rs::{reply, parse, dtc, pids, Framing, ProtocolId}`. Embedded
+transports such as BLE can use it directly while keeping `obd2-rs` for the
+serial driver and decoders.
 
 ## Supported platforms
 
@@ -51,14 +63,14 @@ if obd.is_connected() {
 
 ## MSRV
 
-Rust 1.85 (edition 2024).
+Rust 1.87 (edition 2024).
 
 ## Build & test
 
 ```sh
 cargo build --release
-cargo test              # 116 unit tests + doctests
-cargo clippy -- -D warnings
+cargo test --workspace  # obd2-rs + obd2-core unit tests and doctests
+cargo clippy --all-targets -- -D warnings
 cargo fmt --check
 ```
 

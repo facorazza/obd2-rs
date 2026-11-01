@@ -21,6 +21,7 @@ pub fn get(mode: u8, pid: u16) -> Option<&'static OBDCommand> {
         6 => commands_table::MODE6,
         7 => commands_table::MODE7,
         9 => commands_table::MODE9,
+        10 => commands_table::MODE10,
         _ => return None,
     };
     table.get(pid as usize).and_then(|c| c.as_ref())
@@ -42,6 +43,7 @@ pub fn all() -> impl Iterator<Item = &'static OBDCommand> {
         .chain(commands_table::MODE6)
         .chain(commands_table::MODE7)
         .chain(commands_table::MODE9)
+        .chain(commands_table::MODE10)
         .chain(commands_table::MISC)
         .filter_map(|c| c.as_ref())
 }
@@ -56,6 +58,7 @@ pub fn base_commands() -> Vec<&'static OBDCommand> {
         "GET_DTC",
         "CLEAR_DTC",
         "GET_CURRENT_DTC",
+        "GET_PERMANENT_DTC",
         "ELM_VERSION",
         "ELM_VOLTAGE",
     ]
@@ -105,7 +108,7 @@ mod tests {
     #[test]
     fn base_commands_are_all_present() {
         let base = base_commands();
-        assert_eq!(base.len(), 8);
+        assert_eq!(base.len(), 9);
         let names: Vec<&str> = base.iter().map(|c| c.name).collect();
         for expected in [
             "PIDS_A",
@@ -114,6 +117,7 @@ mod tests {
             "GET_DTC",
             "CLEAR_DTC",
             "GET_CURRENT_DTC",
+            "GET_PERMANENT_DTC",
             "ELM_VERSION",
             "ELM_VOLTAGE",
         ] {
@@ -137,6 +141,7 @@ mod tests {
     #[test]
     fn has_pid_matches_get() {
         assert!(has_pid(1, 12));
+        assert!(has_pid(10, 0));
         assert!(!has_pid(6, 17));
         assert!(!has_pid(0, 0));
         assert!(!has_pid(1, 0xFFFF));

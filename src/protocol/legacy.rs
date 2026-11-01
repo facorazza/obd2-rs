@@ -3,6 +3,8 @@
 //!
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use obd2_core::ProtocolId;
+
 use crate::message::{Frame, Message, ProtocolParser};
 use crate::protocol::decode_hex;
 use crate::util::contiguous;
@@ -17,25 +19,25 @@ pub enum LegacyProtocol {
     Iso142304Fast,
 }
 
+impl LegacyProtocol {
+    const fn protocol_id(self) -> ProtocolId {
+        match self {
+            LegacyProtocol::SaeJ1850Pwm => ProtocolId::SAE_J1850_PWM,
+            LegacyProtocol::SaeJ1850Vpw => ProtocolId::SAE_J1850_VPW,
+            LegacyProtocol::Iso91412 => ProtocolId::ISO_9141_2,
+            LegacyProtocol::Iso1423045baud => ProtocolId::ISO_14230_4_5BAUD,
+            LegacyProtocol::Iso142304Fast => ProtocolId::ISO_14230_4_FAST,
+        }
+    }
+}
+
 impl ProtocolParser for LegacyProtocol {
     fn elm_name(&self) -> &'static str {
-        match self {
-            LegacyProtocol::SaeJ1850Pwm => "SAE J1850 PWM",
-            LegacyProtocol::SaeJ1850Vpw => "SAE J1850 VPW",
-            LegacyProtocol::Iso91412 => "ISO 9141-2",
-            LegacyProtocol::Iso1423045baud => "ISO 14230-4 (KWP 5BAUD)",
-            LegacyProtocol::Iso142304Fast => "ISO 14230-4 (KWP FAST)",
-        }
+        self.protocol_id().elm_name()
     }
 
     fn elm_id(&self) -> &'static str {
-        match self {
-            LegacyProtocol::SaeJ1850Pwm => "1",
-            LegacyProtocol::SaeJ1850Vpw => "2",
-            LegacyProtocol::Iso91412 => "3",
-            LegacyProtocol::Iso1423045baud => "4",
-            LegacyProtocol::Iso142304Fast => "5",
-        }
+        self.protocol_id().elm_id()
     }
 
     fn tx_id_engine(&self) -> Option<u32> {

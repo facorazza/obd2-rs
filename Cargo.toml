@@ -7,7 +7,7 @@
 name = "obd2-rs"
 version = "0.1.1"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.87"
 description = "OBD-II library: ELM327 driver, OBD protocols, commands and decoders"
 license = "GPL-3.0-or-later"
 readme = "README.md"
@@ -17,9 +17,10 @@ categories = ["embedded", "hardware-support"]
 exclude = [".github/**", ".gitignore"]
 
 [workspace]
-members = ["tools/specs-generator"]
+members = ["obd2-core", "tools/specs-generator"]
 
 [dependencies]
+obd2-core = { path = "obd2-core", version = "0.1.1" }
 thiserror = "2.0.20"
 tracing = "0.1.44"
 serialport = "4.9.0"

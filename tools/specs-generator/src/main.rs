@@ -5,7 +5,7 @@
 //!   specs-generator <sources-dir> <output-dir>
 //!
 //! Emits `dtc_table.rs` (SAE J2012 DTCs) and `commands_table.rs`
-//! (SAE J1979 PIDs, modes 01/02/03/04/06/07/09 + ELM327 commands).
+//! (SAE J1979 PIDs, modes 01/02/03/04/06/07/09/0A + ELM327 commands).
 //! See `docs/tables.md` for full provenance of the sources.
 //!
 // SPDX-License-Identifier: GPL-3.0-or-later
@@ -50,6 +50,7 @@ struct Spec {
     mode6: Table,
     mode7: Table,
     mode9: Table,
+    mode10: Table,
     misc: Table,
 }
 
@@ -492,6 +493,13 @@ fn build_spec(sources: &Path) -> Spec {
             "ALL",
         ),
         mode9: build_mode9(),
+        mode10: single(
+            "GET_PERMANENT_DTC",
+            "Get permanent DTCs",
+            "0A",
+            "Dtc",
+            "ALL",
+        ),
         misc: vec![
             Some(Command {
                 name: "ELM_VERSION".to_string(),
@@ -610,6 +618,8 @@ fn emit_commands_table(spec: &Spec) -> String {
     out.push_str(&emit_table("MODE7", &spec.mode7));
     out.push('\n');
     out.push_str(&emit_table("MODE9", &spec.mode9));
+    out.push('\n');
+    out.push_str(&emit_table("MODE10", &spec.mode10));
     out.push('\n');
     out.push_str(&emit_table("MISC", &spec.misc));
     out
