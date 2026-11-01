@@ -5,7 +5,7 @@
 
 [package]
 name = "obd2-rs"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.87"
 description = "OBD-II library: ELM327 driver, OBD protocols, commands and decoders"
@@ -20,7 +20,7 @@ exclude = [".github/**", ".gitignore"]
 members = ["obd2-core", "tools/specs-generator"]
 
 [dependencies]
-obd2-core = { path = "obd2-core", version = "0.1.1" }
+obd2-core = { path = "obd2-core", version = "0.2.0" }
 thiserror = "2.0.20"
 tracing = "0.1.44"
 serialport = "4.9.0"

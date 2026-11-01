@@ -227,14 +227,14 @@ dependencies = [
 
 [[package]]
 name = "obd2-core"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "heapless",
 ]
 
 [[package]]
 name = "obd2-rs"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "obd2-core",
  "serialport",
