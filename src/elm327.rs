@@ -8,8 +8,8 @@
 
 use std::time::Duration;
 
-use obd2_core::ProtocolId;
-use obd2_core::reply::{ElmResponse, Feed, InitCommand, InitOptions, Overflow};
+use obd2_rs_core::ProtocolId;
+use obd2_rs_core::reply::{ElmResponse, Feed, InitCommand, InitOptions, Overflow};
 
 use crate::message::{Message, Protocol, ProtocolParser};
 use crate::protocol::{CanProtocol, LegacyProtocol, UnknownProtocol};
@@ -242,7 +242,7 @@ impl ELM327 {
         if check_voltage {
             match elm.send(b"AT RV", None) {
                 Ok(r) if r.len() == 1 && !r[0].is_empty() => {
-                    let Some(volts) = obd2_core::parse::voltage(&r[0]) else {
+                    let Some(volts) = obd2_rs_core::parse::voltage(&r[0]) else {
                         elm.error("Incorrect response from 'AT RV'");
                         return elm;
                     };

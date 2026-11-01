@@ -17,10 +17,10 @@ categories = ["embedded", "hardware-support"]
 exclude = [".github/**", ".gitignore"]
 
 [workspace]
-members = ["obd2-core", "tools/specs-generator"]
+members = ["obd2-rs-core", "tools/specs-generator"]
 
 [dependencies]
-obd2-core = { path = "obd2-core", version = "0.2.0" }
+obd2-rs-core = { path = "obd2-rs-core", version = "0.2.0" }
 thiserror = "2.0.20"
 tracing = "0.1.44"
 serialport = "4.9.0"

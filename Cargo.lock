@@ -226,20 +226,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "obd2-core"
-version = "0.2.0"
-dependencies = [
- "heapless",
-]
-
-[[package]]
 name = "obd2-rs"
 version = "0.2.0"
 dependencies = [
- "obd2-core",
+ "obd2-rs-core",
  "serialport",
  "thiserror",
  "tracing",
+]
+
+[[package]]
+name = "obd2-rs-core"
+version = "0.2.0"
+dependencies = [
+ "heapless",
 ]
 
 [[package]]

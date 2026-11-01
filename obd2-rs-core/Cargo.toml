@@ -1,10 +1,10 @@
-# obd2-core: allocation-free OBD-II / ELM327 primitives.
+# obd2-rs-core: allocation-free OBD-II / ELM327 primitives.
 #
 # The parts of obd2-rs that do not need std or a serial port live here so
 # embedded targets can share the same reply, PID and DTC parsers.
 
 [package]
-name = "obd2-core"
+name = "obd2-rs-core"
 version = "0.2.0"
 edition = "2024"
 rust-version = "1.87"

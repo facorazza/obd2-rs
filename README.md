@@ -47,7 +47,7 @@ if obd.is_connected() {
 
 ## no_std core
 
-`obd2-core` holds the allocation-free half of the library: ELM reply framing
+`obd2-rs-core` holds the allocation-free half of the library: ELM reply framing
 (`ElmResponse`, `InitOptions`), Mode 1 reply parsing, Mode 03/07/0A DTC
 decoding, supported-PID bitmaps and protocol identification. It has no `std`
 or serial dependency and is re-exported as
@@ -69,7 +69,7 @@ Rust 1.87 (edition 2024).
 
 ```sh
 cargo build --release
-cargo test --workspace  # obd2-rs + obd2-core unit tests and doctests
+cargo test --workspace  # obd2-rs + obd2-rs-core unit tests and doctests
 cargo clippy --all-targets -- -D warnings
 cargo fmt --check
 ```

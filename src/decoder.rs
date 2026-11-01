@@ -10,7 +10,7 @@ use crate::codes;
 use crate::message::Message;
 use crate::units::{self, UasValue, Unit};
 use crate::util::{BitArray, bytes_to_hex, bytes_to_int, twos_comp};
-use obd2_core::{DtcCode, parse};
+use obd2_rs_core::{DtcCode, parse};
 use std::collections::BTreeMap;
 
 /// A decoded OBD response value.

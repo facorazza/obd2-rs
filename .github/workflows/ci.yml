@@ -57,12 +57,16 @@ jobs:
         run: cargo build --release
 
       - name: Package
-        run: cargo package
+        # Only the core crate can be packaged here: obd2-rs depends on
+        # `obd2-rs-core` by version, so packaging it requires that version to
+        # already be on crates.io. The release workflow publishes the core
+        # first, and `cargo publish` verifies obd2-rs at that point.
+        run: cargo package -p obd2-rs-core
 
       - name: Upload crate artifact
         uses: actions/upload-artifact@v7
         with:
-          name: obd2-rs
-          path: target/package/obd2-rs-*.crate
+          name: obd2-rs-core
+          path: target/package/obd2-rs-core-*.crate
           if-no-files-found: error
           retention-days: 14

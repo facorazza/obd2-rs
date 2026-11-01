@@ -13,7 +13,7 @@
 //! | [`decoder`]   | value decoders                                  |
 //! | [`dtc_table`] | generated DTC table                             |
 //!
-//! The `no_std` half of the library is re-exported from `obd2-core`:
+//! The `no_std` half of the library is re-exported from `obd2-rs-core`:
 //! [`reply`], [`parse`], [`dtc`], [`pids`], [`Framing`] and [`ProtocolId`].
 
 #![forbid(unsafe_code)]
@@ -31,5 +31,5 @@ pub mod protocol;
 pub mod units;
 pub mod util;
 
-pub use obd2_core::protocol::{Framing, ProtocolId};
-pub use obd2_core::{dtc, parse, pids, reply};
+pub use obd2_rs_core::protocol::{Framing, ProtocolId};
+pub use obd2_rs_core::{dtc, parse, pids, reply};
