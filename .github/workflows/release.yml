@@ -37,10 +37,12 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         # The core crate changes less often than obd2-rs, so a tag can point at
         # a version that is already published. Skip only that case; any other
-        # failure has to abort the release.
+        # failure has to abort the release. The lookup runs outside the
+        # workspace, because `cargo info` would otherwise resolve the local
+        # path dependency and report an unpublished crate as present.
         run: |
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' obd2-rs-core/Cargo.toml | head -n 1)
-          if cargo info "obd2-rs-core@$version" >/dev/null 2>&1; then
+          if (cd "$(mktemp -d)" && cargo info "obd2-rs-core@$version" >/dev/null 2>&1); then
             echo "obd2-rs-core $version is already published"
           else
             cargo publish -p obd2-rs-core
@@ -53,8 +55,15 @@ jobs:
         # refuses to start until the dependency resolves. Retry instead of a
         # fixed sleep, which is either too short or too slow.
         run: |
-          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+          for attempt in $(seq 1 20); do
             if cargo publish -p obd2-rs; then
+              exit 0
+            fi
+            # A retry can fail because the previous attempt uploaded and only
+            # the index lookup failed, so check before looping again.
+            if (cd "$(mktemp -d)" && cargo info "obd2-rs@$version" >/dev/null 2>&1); then
+              echo "obd2-rs $version is published"
               exit 0
             fi
             echo "obd2-rs publish attempt $attempt failed; retrying in 15s"
