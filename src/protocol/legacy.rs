@@ -3,7 +3,7 @@
 //!
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use obd2_rs_core::ProtocolId;
+use crate::ProtocolId;
 
 use crate::message::{Frame, Message, ProtocolParser};
 use crate::protocol::decode_hex;

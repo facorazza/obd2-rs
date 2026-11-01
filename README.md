@@ -47,13 +47,30 @@ if obd.is_connected() {
 
 ## no_std core
 
-`obd2-rs-core` holds the allocation-free half of the library: ELM reply framing
-(`ElmResponse`, `InitOptions`), Mode 1 reply parsing, Mode 03/07/0A DTC
-decoding, supported-PID bitmaps and protocol identification. It has no `std`
-or serial dependency and is re-exported as
-`obd2_rs::{reply, parse, dtc, pids, Framing, ProtocolId}`. Embedded
-transports such as BLE can use it directly while keeping `obd2-rs` for the
-serial driver and decoders.
+The parsing half of the library is allocation-free and builds without `std`:
+ELM reply framing (`ElmResponse`, `InitOptions`), Mode 1 reply parsing, Mode
+03/07/0A DTC decoding, supported-PID bitmaps and protocol identification. With
+`default-features = false` the serial driver, the decoders and every
+`alloc`-based module disappear, leaving `obd2_rs::{reply, parse, dtc, pids,
+protocol}` and a single dependency (`heapless`).
+
+Embedded transports such as BLE can use that surface directly:
+
+```toml
+[dependencies]
+obd2-rs = { version = "0.2", default-features = false }
+```
+
+```rust,ignore
+use obd2_rs::parse;
+use obd2_rs::reply::{ElmResponse, Feed};
+
+let mut reply = ElmResponse::<512>::new();
+// Feed each notification chunk; Feed::Complete means the `>` prompt arrived.
+```
+
+The `std` feature is on by default and enables `elm327`, `obd`, `decoder`,
+`message`, `units`, `util` and the protocol frame parsers.
 
 ## Supported platforms
 
@@ -69,7 +86,8 @@ Rust 1.87 (edition 2024).
 
 ```sh
 cargo build --release
-cargo test --workspace  # obd2-rs + obd2-rs-core unit tests and doctests
+cargo test                      # unit tests and doctests
+cargo check --no-default-features
 cargo clippy --all-targets -- -D warnings
 cargo fmt --check
 ```

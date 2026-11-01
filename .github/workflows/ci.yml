@@ -41,8 +41,10 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends libudev-dev pkg-config
 
-      - name: Install rustfmt and clippy
-        run: rustup component add rustfmt clippy
+      - name: Install rustfmt, clippy and the embedded target
+        run: |
+          rustup component add rustfmt clippy
+          rustup target add riscv32imac-unknown-none-elf
 
       - name: Format
         run: cargo fmt --check
@@ -53,20 +55,24 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
 
+      - name: Clippy without std
+        run: cargo clippy --no-default-features -- -D warnings
+
+      # The firmware links this crate without `std`, so a build for its target
+      # is the real check that the split between the two feature sets holds.
+      - name: Embedded build
+        run: cargo build --no-default-features --target riscv32imac-unknown-none-elf
+
       - name: Release build
         run: cargo build --release
 
       - name: Package
-        # Only the core crate can be packaged here: obd2-rs depends on
-        # `obd2-rs-core` by version, so packaging it requires that version to
-        # already be on crates.io. The release workflow publishes the core
-        # first, and `cargo publish` verifies obd2-rs at that point.
-        run: cargo package -p obd2-rs-core
+        run: cargo package
 
       - name: Upload crate artifact
         uses: actions/upload-artifact@v7
         with:
-          name: obd2-rs-core
-          path: target/package/obd2-rs-core-*.crate
+          name: obd2-rs
+          path: target/package/obd2-rs-*.crate
           if-no-files-found: error
           retention-days: 14

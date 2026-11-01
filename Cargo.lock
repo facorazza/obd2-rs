@@ -229,17 +229,10 @@ dependencies = [
 name = "obd2-rs"
 version = "0.2.0"
 dependencies = [
- "obd2-rs-core",
+ "heapless",
  "serialport",
  "thiserror",
  "tracing",
-]
-
-[[package]]
-name = "obd2-rs-core"
-version = "0.2.0"
-dependencies = [
- "heapless",
 ]
 
 [[package]]

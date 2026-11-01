@@ -2,6 +2,10 @@
 #
 # ELM327 serial driver, OBD-II protocol parsers, command tables and
 # decoders. GPL-3.0-or-later (data tables: MIT).
+#
+# The parsing half is allocation-free and builds without `std`, so embedded
+# targets can share it; `default-features = false` drops the serial driver
+# and the standard library.
 
 [package]
 name = "obd2-rs"
@@ -13,14 +17,19 @@ license = "GPL-3.0-or-later"
 readme = "README.md"
 repository = "https://github.com/facorazza/obd2-rs"
 keywords = ["obd", "obd2", "obdii", "elm327", "car"]
-categories = ["embedded", "hardware-support"]
+categories = ["embedded", "hardware-support", "no-std"]
 exclude = [".github/**", ".gitignore"]
 
 [workspace]
-members = ["obd2-rs-core", "tools/specs-generator"]
+members = ["tools/specs-generator"]
+
+[features]
+default = ["std"]
+# Serial driver, decoders and every module that needs `alloc`.
+std = ["dep:serialport", "dep:thiserror", "dep:tracing"]
 
 [dependencies]
-obd2-rs-core = { path = "obd2-rs-core", version = "0.2.0" }
-thiserror = "2.0.20"
-tracing = "0.1.44"
-serialport = "4.9.0"
+heapless = "0.9.3"
+thiserror = { version = "2.0.20", optional = true }
+tracing = { version = "0.1.44", optional = true }
+serialport = { version = "4.9.0", optional = true }
