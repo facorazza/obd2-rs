@@ -48,6 +48,7 @@ pub enum Unit {
     Microampere,
     Pascal,
     MillivoltPerSecond,
+    NewtonMeter,
 }
 
 impl Unit {
@@ -91,6 +92,7 @@ impl Unit {
             Unit::Microampere => "microampere",
             Unit::Pascal => "pascal",
             Unit::MillivoltPerSecond => "millivolt / second",
+            Unit::NewtonMeter => "newton_meter",
         }
     }
 }

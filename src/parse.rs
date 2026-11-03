@@ -56,11 +56,42 @@ pub fn line_bytes(line: &str, out: &mut [u8]) -> Option<usize> {
 /// Several ECUs may answer a functional request, one frame per line and in
 /// varying order. The engine ECU's frame wins so a PID does not flip between
 /// modules; any other header is only a fallback.
+///
+/// Payloads longer than one CAN frame (the compression-ignition PIDs above
+/// `0x5F` carry up to 13 data bytes) arrive as indexed continuation lines
+/// (`0:`, `1:`, ...) when the adapter is configured without headers, and are
+/// joined back together in order.
 pub fn data_bytes<'a>(response: &str, pid: u8, out: &'a mut [u8]) -> Option<&'a [u8]> {
-    let line = find_line(response, pid, true).or_else(|| find_line(response, pid, false))?;
+    let (index, line) =
+        find_line(response, pid, true).or_else(|| find_line(response, pid, false))?;
     let len = line_bytes(line, out)?;
     let start = out[..len].windows(2).position(|pair| pair == [0x41, pid])?;
-    Some(&out[start + 2..len])
+
+    let mut used = len - start - 2;
+    out.copy_within(start + 2..len, 0);
+
+    let Some(first) = frame_index(line) else {
+        return Some(&out[..used]);
+    };
+
+    // Only a strictly increasing run of frame indices belongs to this reply;
+    // another ECU's message restarts numbering at zero.
+    let mut expected = first.wrapping_add(1);
+    for next in lines(response).skip(index + 1) {
+        if frame_index(next) != Some(expected) {
+            break;
+        }
+        let mut bytes = [0u8; 16];
+        let count = line_bytes(next, &mut bytes)?;
+        if used + count > out.len() {
+            return None;
+        }
+        out[used..used + count].copy_from_slice(&bytes[..count]);
+        used += count;
+        expected = expected.wrapping_add(1);
+    }
+
+    Some(&out[..used])
 }
 
 /// Reads the adapter supply voltage from an `ATRV` reply (`12.6V`).
@@ -74,8 +105,8 @@ pub fn voltage(response: &str) -> Option<f32> {
     digits.parse().ok()
 }
 
-fn find_line(response: &str, pid: u8, engine_only: bool) -> Option<&str> {
-    lines(response).find(|line| {
+fn find_line(response: &str, pid: u8, engine_only: bool) -> Option<(usize, &str)> {
+    lines(response).enumerate().find(|(_, line)| {
         if engine_only && !is_engine_ecu(line) {
             return false;
         }
@@ -83,6 +114,15 @@ fn find_line(response: &str, pid: u8, engine_only: bool) -> Option<&str> {
         line_bytes(line, &mut bytes)
             .is_some_and(|len| bytes[..len].windows(2).any(|pair| pair == [0x41, pid]))
     })
+}
+
+/// The ELM327 multi-frame line number (`0:`), if the line has one.
+fn frame_index(line: &str) -> Option<u8> {
+    let prefix = line.trim_start().split_once(':')?.0;
+    if prefix.is_empty() || prefix.len() > 2 {
+        return None;
+    }
+    u8::from_str_radix(prefix, 16).ok()
 }
 
 /// True for a line answered by the engine ECU on 11-bit CAN (`7E8`).
@@ -147,6 +187,35 @@ mod tests {
     fn rejects_no_data() {
         assert!(data("NO DATA\r\r>", 0x0C).is_empty());
         assert!(data("UNABLE TO CONNECT\r\r>", 0x0C).is_empty());
+    }
+
+    #[test]
+    fn joins_multiframe_payloads() {
+        // 01 78 carries 9 data bytes, so the adapter splits it into two
+        // indexed lines with headers off.
+        assert_eq!(
+            data("0: 41 78 0F 01 F4 02 8A\r1: 03 20 03 B6\r\r>", 0x78).as_slice(),
+            &[0x0F, 0x01, 0xF4, 0x02, 0x8A, 0x03, 0x20, 0x03, 0xB6]
+        );
+        // The same with spaces off.
+        assert_eq!(
+            data("0:41780F01F4028A\r1:032003B6\r\r>", 0x78).as_slice(),
+            &[0x0F, 0x01, 0xF4, 0x02, 0x8A, 0x03, 0x20, 0x03, 0xB6]
+        );
+    }
+
+    #[test]
+    fn stops_at_a_broken_frame_sequence() {
+        // A missing frame or another ECU restarting at 0 must not be glued
+        // onto the payload.
+        assert_eq!(
+            data("0: 41 78 0F 01 F4 02 8A\r2: 03 20 03 B6\r", 0x78).as_slice(),
+            &[0x0F, 0x01, 0xF4, 0x02, 0x8A]
+        );
+        assert_eq!(
+            data("0: 41 78 0F 01 F4 02 8A\r0: 03 20 03 B6\r", 0x78).as_slice(),
+            &[0x0F, 0x01, 0xF4, 0x02, 0x8A]
+        );
     }
 
     #[test]

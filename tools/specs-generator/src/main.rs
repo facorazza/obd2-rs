@@ -155,6 +155,124 @@ const MODE1_MAP: &[(u8, &str, &str)] = &[
     (0x5D, "FUEL_INJECT_TIMING", "InjectTiming"),
     (0x5E, "FUEL_RATE", "FuelRate"),
     (0x5F, "EMISSION_REQ", "Drop"),
+    (0x60, "PIDS_D", "Pid"),
+    (
+        0x61,
+        "DEMAND_ENGINE_TORQUE",
+        "Sensors(crate::decoder::ENGINE_TORQUE)",
+    ),
+    (
+        0x62,
+        "ACTUAL_ENGINE_TORQUE",
+        "Sensors(crate::decoder::ENGINE_TORQUE)",
+    ),
+    (
+        0x63,
+        "ENGINE_REFERENCE_TORQUE",
+        "Sensors(crate::decoder::REFERENCE_TORQUE)",
+    ),
+    (
+        0x64,
+        "ENGINE_PERCENT_TORQUE",
+        "Sensors(crate::decoder::ENGINE_PERCENT_TORQUE)",
+    ),
+    (0x65, "AUX_IO_SUPPORTED", "Bits"),
+    (0x66, "MAF_SENSOR", "Sensors(crate::decoder::MAF_SENSORS)"),
+    (
+        0x67,
+        "COOLANT_TEMP_SENSOR",
+        "Sensors(crate::decoder::COOLANT_SENSORS)",
+    ),
+    (
+        0x68,
+        "INTAKE_TEMP_SENSOR",
+        "Sensors(crate::decoder::INTAKE_AIR_SENSORS)",
+    ),
+    (
+        0x69,
+        "EGR_ACTUAL_COMMANDED",
+        "Sensors(crate::decoder::EGR_VALVES)",
+    ),
+    (
+        0x6A,
+        "INTAKE_AIR_FLOW_CONTROL",
+        "Sensors(crate::decoder::INTAKE_AIR_FLOW)",
+    ),
+    (
+        0x6B,
+        "EGR_TEMP",
+        "Sensors(crate::decoder::EGR_TEMPERATURES)",
+    ),
+    (
+        0x6C,
+        "THROTTLE_ACTUATOR_CONTROL",
+        "Sensors(crate::decoder::THROTTLE_ACTUATOR)",
+    ),
+    (
+        0x6D,
+        "FUEL_PRESSURE_CONTROL",
+        "Sensors(crate::decoder::FUEL_PRESSURE_CONTROL)",
+    ),
+    (
+        0x6E,
+        "INJECTION_PRESSURE_CONTROL",
+        "Sensors(crate::decoder::INJECTION_PRESSURE)",
+    ),
+    (
+        0x6F,
+        "TURBO_INLET_PRESSURE",
+        "Sensors(crate::decoder::TURBO_INLET_PRESSURE)",
+    ),
+    (
+        0x70,
+        "BOOST_PRESSURE_CONTROL",
+        "Sensors(crate::decoder::BOOST_PRESSURE)",
+    ),
+    (0x71, "VGT_CONTROL", "Sensors(crate::decoder::VGT_POSITION)"),
+    (
+        0x72,
+        "WASTEGATE_CONTROL",
+        "Sensors(crate::decoder::WASTEGATE_POSITION)",
+    ),
+    (
+        0x73,
+        "EXHAUST_PRESSURE",
+        "Sensors(crate::decoder::EXHAUST_PRESSURE)",
+    ),
+    (0x74, "TURBO_RPM", "Sensors(crate::decoder::TURBO_SPEED)"),
+    (
+        0x75,
+        "TURBO_A_TEMP",
+        "Sensors(crate::decoder::TURBO_TEMPERATURES)",
+    ),
+    (
+        0x76,
+        "TURBO_B_TEMP",
+        "Sensors(crate::decoder::TURBO_TEMPERATURES)",
+    ),
+    (
+        0x77,
+        "CHARGE_AIR_COOLER_TEMP",
+        "Sensors(crate::decoder::CHARGE_AIR_TEMPERATURES)",
+    ),
+    (0x78, "EGT_B1", "Sensors(crate::decoder::EGT_BANK)"),
+    (0x79, "EGT_B2", "Sensors(crate::decoder::EGT_BANK)"),
+    (0x7A, "DPF_B1", "Sensors(crate::decoder::DPF_PRESSURES)"),
+    (0x7B, "DPF_B2", "Sensors(crate::decoder::DPF_PRESSURES)"),
+    (
+        0x7C,
+        "DPF_TEMP",
+        "Sensors(crate::decoder::DPF_TEMPERATURES)",
+    ),
+    (0x7D, "NOX_NTE_STATUS", "Bits"),
+    (0x7E, "PM_NTE_STATUS", "Bits"),
+    (
+        0x7F,
+        "ENGINE_RUN_TIME_COUNTERS",
+        "Sensors(crate::decoder::ENGINE_RUN_TIMES)",
+    ),
+    (0x80, "PIDS_E", "Pid"),
+    (0x83, "NOX_SENSOR", "Sensors(crate::decoder::NOX_SENSORS)"),
 ];
 
 /// Parses a DTC line: `P0101 - Mass or Volume Air Flow Sensor A ...`.
@@ -205,7 +323,7 @@ fn parse_wiki_pid_line(line: &str) -> Option<(u8, u32, String)> {
 /// Mode 01 from the Wikipedia mirror; the Wikipedia byte count excludes
 /// the mode and PID bytes, which are part of our command.
 fn build_mode1(sources: &Path) -> Table {
-    let mut table: Table = vec![None; 96];
+    let mut table: Table = vec![None; 0x84];
     let text = fs::read_to_string(sources.join("pids_wikipedia.txt"))
         .unwrap_or_else(|e| panic!("failed to read pids_wikipedia.txt: {e}"));
     for line in text.lines() {

@@ -139,6 +139,28 @@ mod tests {
     }
 
     #[test]
+    fn diesel_pids_are_present() {
+        for (pid, name) in [
+            (0x60, "PIDS_D"),
+            (0x61, "DEMAND_ENGINE_TORQUE"),
+            (0x69, "EGR_ACTUAL_COMMANDED"),
+            (0x74, "TURBO_RPM"),
+            (0x78, "EGT_B1"),
+            (0x7A, "DPF_B1"),
+            (0x7C, "DPF_TEMP"),
+            (0x83, "NOX_SENSOR"),
+        ] {
+            assert_eq!(get(1, pid).map(|c| c.name), Some(name));
+        }
+        // Freeze frame mirrors Mode 01.
+        assert_eq!(get(2, 0x78).map(|c| c.name), Some("DTC_EGT_B1"));
+        // The next support bitmap is present, reserved gaps stay empty.
+        assert_eq!(get(1, 0x80).map(|c| c.name), Some("PIDS_E"));
+        assert!(get(1, 0x81).is_none());
+        assert!(get(1, 0x82).is_none());
+    }
+
+    #[test]
     fn has_pid_matches_get() {
         assert!(has_pid(1, 12));
         assert!(has_pid(10, 0));

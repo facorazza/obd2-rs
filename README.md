@@ -38,10 +38,12 @@ if obd.is_connected() {
 - Protocol parsers for ELM protocol IDs `1`–`A` (SAE J1850 PWM/VPW, ISO
   9141-2, ISO 14230-4, ISO 15765-4 CAN 11/29-bit, SAE J1939) plus an
   unknown-protocol fallback
-- 200+ OBD commands (modes 1–9, plus Mode 0A permanent DTCs) with generated
+- 350+ OBD commands (modes 1–9, plus Mode 0A permanent DTCs) with generated
   command and DTC tables
 - All standard decoders: scalars, UAS-scaled values, status/monitor trees,
-  DTCs, VIN, fuel status
+  DTCs, VIN, fuel status, and labelled multi-sensor payloads
+- Compression-ignition PIDs `0x60`–`0x83`: torque, EGR, boost/VGT, turbo,
+  exhaust gas temperatures, DPF pressure and temperature, NOx sensors
 - `query` / `supported_commands` / `supports` high-level API
 - `stored_dtcs` / `pending_dtcs` / `permanent_dtcs` / `clear_dtcs` helpers
 
@@ -58,7 +60,7 @@ Embedded transports such as BLE can use that surface directly:
 
 ```toml
 [dependencies]
-obd2-rs = { version = "0.2", default-features = false }
+obd2-rs = { version = "0.3", default-features = false }
 ```
 
 ```rust,ignore

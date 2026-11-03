@@ -48,6 +48,10 @@ pub enum Decoder {
     Uas(u8),
     /// An encoded string of fixed length (`encoded_string(17)`).
     EncodedString(usize),
+    /// A multi-sensor payload decoded with the given table.
+    Sensors(&'static [decoder::Sensor]),
+    /// A bit-encoded payload, exposed as a bit array.
+    Bits,
 }
 
 impl Decoder {
@@ -90,6 +94,8 @@ impl Decoder {
             Decoder::Cvn => decoder::cvn(messages),
             Decoder::Uas(id) => decoder::decode_uas(messages, *id),
             Decoder::EncodedString(len) => decoder::decode_encoded_string(messages, *len),
+            Decoder::Sensors(table) => decoder::sensors(messages, table),
+            Decoder::Bits => decoder::pid(messages),
         }
     }
 }

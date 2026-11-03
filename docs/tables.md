@@ -79,6 +79,49 @@ cargo fmt
   Data bytes are the Wikipedia counts plus 2 (mode + PID bytes
   are part of the command, not the payload).
 
+#### Compression-ignition PIDs (0x60–0x83)
+
+PIDs above `0x5F` report several sensors in one reply. The Wikipedia mirror
+stops at `0x5F`, so `sources/pids_wikipedia.txt` was extended with the
+`0x60`–`0x83` rows from SAE J1979 (byte counts and descriptions cross-checked
+against the [DashLogic PID listing](https://www.dashlogic.com/docs/technical/obdii_pids)).
+Their decoders are `Sensors(&'static [decoder::Sensor])` tables in
+`src/decoder.rs`, one table per payload layout:
+
+| PIDs | Table | Contents |
+|---|---|---|
+| 0x61, 0x62 | `ENGINE_TORQUE` | driver's demand / actual percent torque |
+| 0x63 | `REFERENCE_TORQUE` | engine reference torque |
+| 0x64 | `ENGINE_PERCENT_TORQUE` | torque at idle and five reference points |
+| 0x66 | `MAF_SENSORS` | two mass-air-flow sensors |
+| 0x67 | `COOLANT_SENSORS` | two coolant temperature sensors |
+| 0x68 | `INTAKE_AIR_SENSORS` | intake air temperature, two banks |
+| 0x69 | `EGR_VALVES` | commanded/actual/error, two EGR valves |
+| 0x6A | `INTAKE_AIR_FLOW` | commanded and relative intake air flow |
+| 0x6B | `EGR_TEMPERATURES` | EGR temperature, two banks |
+| 0x6C | `THROTTLE_ACTUATOR` | commanded and relative throttle position |
+| 0x6D | `FUEL_PRESSURE_CONTROL` | two fuel pressure control loops |
+| 0x6E | `INJECTION_PRESSURE` | two injection pressure loops |
+| 0x6F | `TURBO_INLET_PRESSURE` | compressor inlet pressure, two sensors |
+| 0x70 | `BOOST_PRESSURE` | commanded/measured boost, two controls |
+| 0x71, 0x72 | `VGT_POSITION`, `WASTEGATE_POSITION` | commanded/actual position |
+| 0x73 | `EXHAUST_PRESSURE` | exhaust pressure, two banks |
+| 0x74 | `TURBO_SPEED` | turbocharger rpm, two turbos |
+| 0x75, 0x76 | `TURBO_TEMPERATURES` | compressor and turbine temperatures |
+| 0x77 | `CHARGE_AIR_TEMPERATURES` | charge air cooler, two banks |
+| 0x78, 0x79 | `EGT_BANK` | four exhaust gas temperatures |
+| 0x7A, 0x7B | `DPF_PRESSURES` | delta (signed), inlet and outlet pressure |
+| 0x7C | `DPF_TEMPERATURES` | DPF inlet/outlet, two banks |
+| 0x7F | `ENGINE_RUN_TIMES` | total, idle and PTO run time |
+| 0x83 | `NOX_SENSORS` | NOx concentration, two banks |
+
+Every table starts at the first byte after the PID; byte `A` of the SAE
+layout is the per-sensor support bitmap and is skipped. A reply that is too
+short for a sensor drops that sensor, and a table with a single sensor
+decodes to `Value::Quantity` instead of `Value::Readings`. PIDs `0x60` and
+`0x80` are the support bitmaps for the two new blocks, so `SupportedPids`
+keeps five bitmaps (`0x00`–`0xA0`).
+
 ### Mode 02
 
 Derived from mode 01: same PIDs with

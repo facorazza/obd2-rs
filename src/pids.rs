@@ -2,23 +2,25 @@
 
 use crate::parse::data_bytes;
 
-/// The bitmaps reported by `01 00`, `01 20` and `01 40`.
+/// The bitmaps reported by `01 00`, `01 20`, `01 40`, `01 60` and `01 80`.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct SupportedPids {
-    bitmaps: [u32; 3],
+    bitmaps: [u32; 5],
 }
 
 impl SupportedPids {
     pub const fn new() -> Self {
-        Self { bitmaps: [0; 3] }
+        Self { bitmaps: [0; 5] }
     }
 
-    /// Stores the bitmap for `base` (`0x00`, `0x20` or `0x40`).
+    /// Stores the bitmap for `base` (`0x00`, `0x20`, `0x40`, `0x60` or `0x80`).
     pub fn set(&mut self, base: u8, bitmap: u32) {
         match base {
             0x00 => self.bitmaps[0] = bitmap,
             0x20 => self.bitmaps[1] = bitmap,
             0x40 => self.bitmaps[2] = bitmap,
+            0x60 => self.bitmaps[3] = bitmap,
+            0x80 => self.bitmaps[4] = bitmap,
             _ => {}
         }
     }
@@ -28,6 +30,8 @@ impl SupportedPids {
             0x00 => Some(self.bitmaps[0]),
             0x20 => Some(self.bitmaps[1]),
             0x40 => Some(self.bitmaps[2]),
+            0x60 => Some(self.bitmaps[3]),
+            0x80 => Some(self.bitmaps[4]),
             _ => None,
         }
     }
@@ -56,6 +60,8 @@ impl SupportedPids {
             0x01..=0x20 => (self.bitmaps[0], pid),
             0x21..=0x40 => (self.bitmaps[1], pid - 0x20),
             0x41..=0x60 => (self.bitmaps[2], pid - 0x40),
+            0x61..=0x80 => (self.bitmaps[3], pid - 0x60),
+            0x81..=0xA0 => (self.bitmaps[4], pid - 0x80),
             _ => return false,
         };
         bitmap & (1u32 << (32 - offset as u32)) != 0
@@ -76,6 +82,20 @@ mod tests {
         assert!(pids.contains(0x0C));
         assert!(!pids.contains(0x02));
         assert!(!pids.contains(0x61));
+    }
+
+    #[test]
+    fn diesel_blocks_are_discovered() {
+        let mut pids = SupportedPids::new();
+        // 0x61 (bit 31) and 0x78 (bit 8) in the 0x61-0x80 block.
+        pids.set(0x60, 0x8000_0100);
+        assert!(pids.contains(0x61));
+        assert!(pids.contains(0x78));
+        assert!(!pids.contains(0x62));
+        // 0x83 (bit 29) in the 0x81-0xA0 block.
+        pids.set(0x80, 0x2000_0000);
+        assert!(pids.contains(0x83));
+        assert!(!pids.contains(0x81));
     }
 
     #[test]

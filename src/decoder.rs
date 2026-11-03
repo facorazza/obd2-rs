@@ -29,6 +29,8 @@ pub enum Value {
     RawString(String),
     /// A measured quantity with unit.
     Quantity(f64, Unit),
+    /// Labelled values from a multi-sensor PID (diesel PIDs above `0x5F`).
+    Readings(Vec<Reading>),
     /// The diagnostic status object (Mode 01 PID 01).
     Status(Status),
     /// A single string lookup (air status, OBD compliance, fuel type).
@@ -652,6 +654,337 @@ fn first_true(bits: &[bool]) -> Option<usize> {
     bits.iter().position(|b| *b)
 }
 
+/// Width of one sensor value inside a PID payload.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Width {
+    U8,
+    U16,
+    /// Two's complement 16-bit value.
+    S16,
+    U32,
+}
+
+/// One sensor inside a multi-sensor PID payload.
+///
+/// The diesel PIDs above `0x5F` report several sensors in one reply, each
+/// with its own byte range and scaling. A table of these drives the
+/// [`sensors`] decoder.
+#[derive(Debug, Clone, Copy)]
+pub struct Sensor {
+    pub label: &'static str,
+    pub unit: Unit,
+    /// Byte offset inside the payload (0 is the first byte after the PID).
+    pub offset: usize,
+    pub width: Width,
+    pub scale: f64,
+    pub bias: f64,
+}
+
+// `f64` fields rule out a derived `Eq`; bit equality keeps the type usable
+// inside `OBDCommand`, which is a `HashMap` key.
+impl PartialEq for Sensor {
+    fn eq(&self, other: &Self) -> bool {
+        self.label == other.label
+            && self.unit == other.unit
+            && self.offset == other.offset
+            && self.width == other.width
+            && self.scale.to_bits() == other.scale.to_bits()
+            && self.bias.to_bits() == other.bias.to_bits()
+    }
+}
+
+impl Eq for Sensor {}
+
+/// A labelled value extracted from a multi-sensor PID.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Reading {
+    pub label: &'static str,
+    pub value: f64,
+    pub unit: Unit,
+}
+
+const fn u8_sensor(
+    label: &'static str,
+    unit: Unit,
+    offset: usize,
+    scale: f64,
+    bias: f64,
+) -> Sensor {
+    Sensor {
+        label,
+        unit,
+        offset,
+        width: Width::U8,
+        scale,
+        bias,
+    }
+}
+
+const fn u16_sensor(
+    label: &'static str,
+    unit: Unit,
+    offset: usize,
+    scale: f64,
+    bias: f64,
+) -> Sensor {
+    Sensor {
+        label,
+        unit,
+        offset,
+        width: Width::U16,
+        scale,
+        bias,
+    }
+}
+
+const fn s16_sensor(
+    label: &'static str,
+    unit: Unit,
+    offset: usize,
+    scale: f64,
+    bias: f64,
+) -> Sensor {
+    Sensor {
+        label,
+        unit,
+        offset,
+        width: Width::S16,
+        scale,
+        bias,
+    }
+}
+
+const fn u32_sensor(
+    label: &'static str,
+    unit: Unit,
+    offset: usize,
+    scale: f64,
+    bias: f64,
+) -> Sensor {
+    Sensor {
+        label,
+        unit,
+        offset,
+        width: Width::U32,
+        scale,
+        bias,
+    }
+}
+
+/// Reads one sensor value, or `None` when the payload is too short.
+fn sensor_value(data: &[u8], sensor: &Sensor) -> Option<f64> {
+    let raw = match sensor.width {
+        Width::U8 => *data.get(sensor.offset)? as i64,
+        Width::U16 => {
+            u16::from_be_bytes([*data.get(sensor.offset)?, *data.get(sensor.offset + 1)?]) as i64
+        }
+        Width::S16 => {
+            let v = u16::from_be_bytes([*data.get(sensor.offset)?, *data.get(sensor.offset + 1)?]);
+            v as i16 as i64
+        }
+        Width::U32 => u32::from_be_bytes([
+            *data.get(sensor.offset)?,
+            *data.get(sensor.offset + 1)?,
+            *data.get(sensor.offset + 2)?,
+            *data.get(sensor.offset + 3)?,
+        ]) as i64,
+    };
+    Some(raw as f64 * sensor.scale + sensor.bias)
+}
+
+/// Decodes a multi-sensor PID payload with the given table.
+///
+/// Sensors that do not fit in the reply are skipped, and a table with a
+/// single sensor collapses to a plain [`Value::Quantity`].
+pub fn sensors(messages: &[Message], table: &[Sensor]) -> Value {
+    let data = &messages[0].data[2..];
+    let readings: Vec<Reading> = table
+        .iter()
+        .filter_map(|sensor| {
+            Some(Reading {
+                label: sensor.label,
+                value: sensor_value(data, sensor)?,
+                unit: sensor.unit,
+            })
+        })
+        .collect();
+
+    match readings.as_slice() {
+        [one] => Value::Quantity(one.value, one.unit),
+        _ => Value::Readings(readings),
+    }
+}
+
+// Sensor tables for the diesel PIDs (Mode 01 PIDs 0x60-0x7F and 0x83).
+// Layouts follow SAE J1979; offsets are relative to the first data byte.
+
+/// PID 61/62: driver's demand / actual engine percent torque.
+pub static ENGINE_TORQUE: &[Sensor] = &[u8_sensor("Torque", Unit::Percent, 0, 1.0, -125.0)];
+/// PID 63: engine reference torque.
+pub static REFERENCE_TORQUE: &[Sensor] = &[u16_sensor(
+    "Reference torque",
+    Unit::NewtonMeter,
+    0,
+    1.0,
+    0.0,
+)];
+/// PID 64: engine percent torque at idle and the five reference points.
+pub static ENGINE_PERCENT_TORQUE: &[Sensor] = &[
+    u8_sensor("Idle / point 1", Unit::Percent, 0, 1.0, -125.0),
+    u8_sensor("Point 2", Unit::Percent, 1, 1.0, -125.0),
+    u8_sensor("Point 3", Unit::Percent, 2, 1.0, -125.0),
+    u8_sensor("Point 4", Unit::Percent, 3, 1.0, -125.0),
+    u8_sensor("Point 5", Unit::Percent, 4, 1.0, -125.0),
+];
+/// PID 66: mass air flow sensor A and B.
+pub static MAF_SENSORS: &[Sensor] = &[
+    u16_sensor("Sensor A", Unit::GramsPerSecond, 1, 1.0 / 32.0, 0.0),
+    u16_sensor("Sensor B", Unit::GramsPerSecond, 3, 1.0 / 32.0, 0.0),
+];
+/// PID 67: engine coolant temperature sensors.
+pub static COOLANT_SENSORS: &[Sensor] = &[
+    u8_sensor("Sensor 1", Unit::Celsius, 1, 1.0, -40.0),
+    u8_sensor("Sensor 2", Unit::Celsius, 2, 1.0, -40.0),
+];
+/// PID 68: intake air temperature sensors, banks 1-2 x sensors 1-3.
+pub static INTAKE_AIR_SENSORS: &[Sensor] = &[
+    u8_sensor("Bank 1 Sensor 1", Unit::Celsius, 1, 1.0, -40.0),
+    u8_sensor("Bank 1 Sensor 2", Unit::Celsius, 2, 1.0, -40.0),
+    u8_sensor("Bank 1 Sensor 3", Unit::Celsius, 3, 1.0, -40.0),
+    u8_sensor("Bank 2 Sensor 1", Unit::Celsius, 4, 1.0, -40.0),
+    u8_sensor("Bank 2 Sensor 2", Unit::Celsius, 5, 1.0, -40.0),
+    u8_sensor("Bank 2 Sensor 3", Unit::Celsius, 6, 1.0, -40.0),
+];
+/// PID 69: commanded EGR, actual EGR and EGR error for both EGR valves.
+pub static EGR_VALVES: &[Sensor] = &[
+    u8_sensor("Commanded A", Unit::Percent, 1, 100.0 / 255.0, 0.0),
+    u8_sensor("Actual A", Unit::Percent, 2, 100.0 / 255.0, 0.0),
+    u8_sensor("Error A", Unit::Percent, 3, 100.0 / 128.0, -100.0),
+    u8_sensor("Commanded B", Unit::Percent, 4, 100.0 / 255.0, 0.0),
+    u8_sensor("Actual B", Unit::Percent, 5, 100.0 / 255.0, 0.0),
+    u8_sensor("Error B", Unit::Percent, 6, 100.0 / 128.0, -100.0),
+];
+/// PID 6A: commanded diesel intake air flow and relative position.
+pub static INTAKE_AIR_FLOW: &[Sensor] = &[
+    u8_sensor("Commanded A", Unit::Percent, 1, 100.0 / 255.0, 0.0),
+    u8_sensor("Relative A", Unit::Percent, 2, 100.0 / 255.0, 0.0),
+    u8_sensor("Commanded B", Unit::Percent, 3, 100.0 / 255.0, 0.0),
+    u8_sensor("Relative B", Unit::Percent, 4, 100.0 / 255.0, 0.0),
+];
+/// PID 6B: EGR temperature sensors (1 °C resolution).
+pub static EGR_TEMPERATURES: &[Sensor] = &[
+    u8_sensor("Bank 1 Sensor 1", Unit::Celsius, 1, 1.0, -40.0),
+    u8_sensor("Bank 1 Sensor 2", Unit::Celsius, 2, 1.0, -40.0),
+    u8_sensor("Bank 2 Sensor 1", Unit::Celsius, 3, 1.0, -40.0),
+    u8_sensor("Bank 2 Sensor 2", Unit::Celsius, 4, 1.0, -40.0),
+];
+/// PID 6C: commanded throttle actuator control and relative position.
+pub static THROTTLE_ACTUATOR: &[Sensor] = &[
+    u8_sensor("Commanded A", Unit::Percent, 1, 100.0 / 255.0, 0.0),
+    u8_sensor("Relative A", Unit::Percent, 2, 100.0 / 255.0, 0.0),
+    u8_sensor("Commanded B", Unit::Percent, 3, 100.0 / 255.0, 0.0),
+    u8_sensor("Relative B", Unit::Percent, 4, 100.0 / 255.0, 0.0),
+];
+/// PID 6D: fuel rail pressure control, both pressure control loops.
+pub static FUEL_PRESSURE_CONTROL: &[Sensor] = &[
+    u16_sensor("Commanded A", Unit::Kilopascal, 1, 10.0, 0.0),
+    u16_sensor("Pressure A", Unit::Kilopascal, 3, 10.0, 0.0),
+    u8_sensor("Temperature A", Unit::Celsius, 5, 1.0, -40.0),
+    u16_sensor("Commanded B", Unit::Kilopascal, 6, 10.0, 0.0),
+    u16_sensor("Pressure B", Unit::Kilopascal, 8, 10.0, 0.0),
+    u8_sensor("Temperature B", Unit::Celsius, 10, 1.0, -40.0),
+];
+/// PID 6E: injection pressure control, both control loops.
+pub static INJECTION_PRESSURE: &[Sensor] = &[
+    u16_sensor("Commanded A", Unit::Kilopascal, 1, 10.0, 0.0),
+    u16_sensor("Pressure A", Unit::Kilopascal, 3, 10.0, 0.0),
+    u16_sensor("Commanded B", Unit::Kilopascal, 5, 10.0, 0.0),
+    u16_sensor("Pressure B", Unit::Kilopascal, 7, 10.0, 0.0),
+];
+/// PID 6F: turbocharger compressor inlet pressure.
+pub static TURBO_INLET_PRESSURE: &[Sensor] = &[
+    u8_sensor("Sensor A", Unit::Kilopascal, 1, 1.0, 0.0),
+    u8_sensor("Sensor B", Unit::Kilopascal, 2, 1.0, 0.0),
+];
+/// PID 70: commanded and measured boost pressure.
+pub static BOOST_PRESSURE: &[Sensor] = &[
+    u16_sensor("Commanded A", Unit::Kilopascal, 1, 1.0 / 32.0, 0.0),
+    u16_sensor("Pressure A", Unit::Kilopascal, 3, 1.0 / 32.0, 0.0),
+    u16_sensor("Commanded B", Unit::Kilopascal, 5, 1.0 / 32.0, 0.0),
+    u16_sensor("Pressure B", Unit::Kilopascal, 7, 1.0 / 32.0, 0.0),
+];
+/// PID 71: commanded and actual VGT position.
+pub static VGT_POSITION: &[Sensor] = &[
+    u8_sensor("Commanded A", Unit::Percent, 1, 100.0 / 255.0, 0.0),
+    u8_sensor("Position A", Unit::Percent, 2, 100.0 / 255.0, 0.0),
+    u8_sensor("Commanded B", Unit::Percent, 3, 100.0 / 255.0, 0.0),
+    u8_sensor("Position B", Unit::Percent, 4, 100.0 / 255.0, 0.0),
+];
+/// PID 72: commanded and actual wastegate position.
+pub static WASTEGATE_POSITION: &[Sensor] = &[
+    u8_sensor("Commanded A", Unit::Percent, 1, 100.0 / 255.0, 0.0),
+    u8_sensor("Position A", Unit::Percent, 2, 100.0 / 255.0, 0.0),
+    u8_sensor("Commanded B", Unit::Percent, 3, 100.0 / 255.0, 0.0),
+    u8_sensor("Position B", Unit::Percent, 4, 100.0 / 255.0, 0.0),
+];
+/// PID 73: exhaust pressure per bank.
+pub static EXHAUST_PRESSURE: &[Sensor] = &[
+    u16_sensor("Bank 1", Unit::Kilopascal, 1, 1.0 / 100.0, 0.0),
+    u16_sensor("Bank 2", Unit::Kilopascal, 3, 1.0 / 100.0, 0.0),
+];
+/// PID 74: turbocharger speed.
+pub static TURBO_SPEED: &[Sensor] = &[
+    u16_sensor("Turbo A", Unit::Rpm, 1, 10.0, 0.0),
+    u16_sensor("Turbo B", Unit::Rpm, 3, 10.0, 0.0),
+];
+/// PID 75/76: turbocharger temperatures.
+pub static TURBO_TEMPERATURES: &[Sensor] = &[
+    u8_sensor("Compressor inlet", Unit::Celsius, 1, 1.0, -40.0),
+    u8_sensor("Compressor outlet", Unit::Celsius, 2, 1.0, -40.0),
+    u16_sensor("Turbine inlet", Unit::Celsius, 3, 1.0 / 10.0, -40.0),
+    u16_sensor("Turbine outlet", Unit::Celsius, 5, 1.0 / 10.0, -40.0),
+];
+/// PID 77: charge air cooler temperature.
+pub static CHARGE_AIR_TEMPERATURES: &[Sensor] = &[
+    u8_sensor("Bank 1 Sensor 1", Unit::Celsius, 1, 1.0, -40.0),
+    u8_sensor("Bank 1 Sensor 2", Unit::Celsius, 2, 1.0, -40.0),
+    u8_sensor("Bank 2 Sensor 1", Unit::Celsius, 3, 1.0, -40.0),
+    u8_sensor("Bank 2 Sensor 2", Unit::Celsius, 4, 1.0, -40.0),
+];
+/// PID 78/79: exhaust gas temperature per bank.
+pub static EGT_BANK: &[Sensor] = &[
+    u16_sensor("Sensor 1", Unit::Celsius, 1, 1.0 / 10.0, -40.0),
+    u16_sensor("Sensor 2", Unit::Celsius, 3, 1.0 / 10.0, -40.0),
+    u16_sensor("Sensor 3", Unit::Celsius, 5, 1.0 / 10.0, -40.0),
+    u16_sensor("Sensor 4", Unit::Celsius, 7, 1.0 / 10.0, -40.0),
+];
+/// PID 7A/7B: diesel particulate filter pressures per bank.
+pub static DPF_PRESSURES: &[Sensor] = &[
+    s16_sensor("Delta", Unit::Kilopascal, 1, 1.0 / 100.0, 0.0),
+    u16_sensor("Inlet", Unit::Kilopascal, 3, 1.0 / 100.0, 0.0),
+    u16_sensor("Outlet", Unit::Kilopascal, 5, 1.0 / 100.0, 0.0),
+];
+/// PID 7C: diesel particulate filter temperatures.
+pub static DPF_TEMPERATURES: &[Sensor] = &[
+    u16_sensor("Bank 1 inlet", Unit::Celsius, 1, 1.0 / 10.0, -40.0),
+    u16_sensor("Bank 1 outlet", Unit::Celsius, 3, 1.0 / 10.0, -40.0),
+    u16_sensor("Bank 2 inlet", Unit::Celsius, 5, 1.0 / 10.0, -40.0),
+    u16_sensor("Bank 2 outlet", Unit::Celsius, 7, 1.0 / 10.0, -40.0),
+];
+/// PID 7F: total, idle and PTO engine run time.
+pub static ENGINE_RUN_TIMES: &[Sensor] = &[
+    u32_sensor("Total", Unit::Second, 1, 1.0, 0.0),
+    u32_sensor("Idle", Unit::Second, 5, 1.0, 0.0),
+    u32_sensor("PTO", Unit::Second, 9, 1.0, 0.0),
+];
+/// PID 83: NOx sensor concentrations.
+pub static NOX_SENSORS: &[Sensor] = &[
+    u16_sensor("Bank 1 Sensor 1", Unit::Ppm, 1, 1.0, 0.0),
+    u16_sensor("Bank 1 Sensor 2", Unit::Ppm, 3, 1.0, 0.0),
+    u16_sensor("Bank 2 Sensor 1", Unit::Ppm, 5, 1.0, 0.0),
+    u16_sensor("Bank 2 Sensor 2", Unit::Ppm, 7, 1.0, 0.0),
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1109,5 +1442,81 @@ mod tests {
         // bytes_to_hex produces lowercase hex
         let v = cvn(&msgs(&[0x49, 0x06, 0x00, 0x00, 0xAB, 0xCD, 0x12, 0x34]));
         assert_eq!(v, Value::Cvn(Some("abcd1234".to_string())));
+    }
+
+    #[test]
+    fn egt_bank_decodes_four_sensors() {
+        // 01 78 + support byte + four 16-bit temperatures at 0.1 °C, -40 bias
+        let v = sensors(
+            &msgs(&[
+                0x41, 0x78, 0x0F, 0x01, 0xF4, 0x02, 0x8A, 0x03, 0x20, 0x03, 0xB6,
+            ]),
+            EGT_BANK,
+        );
+        match v {
+            Value::Readings(r) => {
+                assert_eq!(r.len(), 4);
+                assert_eq!(r[0].label, "Sensor 1");
+                assert!((r[0].value - 10.0).abs() < 1e-9);
+                assert!((r[1].value - 25.0).abs() < 1e-9);
+                assert!((r[2].value - 40.0).abs() < 1e-9);
+                assert!((r[3].value - 55.0).abs() < 1e-9);
+                assert_eq!(r[0].unit, Unit::Celsius);
+            }
+            other => panic!("expected Readings, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dpf_delta_pressure_is_signed() {
+        // delta = 0xFF9C (-100) / 100 = -1 kPa, inlet 10 kPa, outlet 11 kPa
+        let v = sensors(
+            &msgs(&[0x41, 0x7A, 0x07, 0xFF, 0x9C, 0x03, 0xE8, 0x04, 0x4C]),
+            DPF_PRESSURES,
+        );
+        match v {
+            Value::Readings(r) => {
+                assert!((r[0].value + 1.0).abs() < 1e-9, "delta {}", r[0].value);
+                assert!((r[1].value - 10.0).abs() < 1e-9);
+                assert!((r[2].value - 11.0).abs() < 1e-9);
+            }
+            other => panic!("expected Readings, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn single_sensor_table_collapses_to_quantity() {
+        assert_qty(
+            sensors(&msgs(&[0x41, 0x61, 0x96]), ENGINE_TORQUE),
+            25.0,
+            Unit::Percent,
+        );
+    }
+
+    #[test]
+    fn turbo_speed_scales_by_ten() {
+        let v = sensors(
+            &msgs(&[0x41, 0x74, 0x03, 0x30, 0xD4, 0x34, 0xBC]),
+            TURBO_SPEED,
+        );
+        match v {
+            Value::Readings(r) => {
+                assert!((r[0].value - 125_000.0).abs() < 1e-9);
+                assert!((r[1].value - 135_000.0).abs() < 1e-9);
+                assert_eq!(r[0].unit, Unit::Rpm);
+            }
+            other => panic!("expected Readings, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn sensors_skip_missing_bytes() {
+        // A truncated reply keeps the sensors that fit instead of panicking,
+        // and a single surviving sensor collapses to a plain quantity.
+        assert_qty(
+            sensors(&msgs(&[0x41, 0x78, 0x0F, 0x01, 0xF4]), EGT_BANK),
+            10.0,
+            Unit::Celsius,
+        );
     }
 }
