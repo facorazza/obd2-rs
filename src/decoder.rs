@@ -797,7 +797,9 @@ fn sensor_value(data: &[u8], sensor: &Sensor) -> Option<f64> {
 /// Sensors that do not fit in the reply are skipped, and a table with a
 /// single sensor collapses to a plain [`Value::Quantity`].
 pub fn sensors(messages: &[Message], table: &[Sensor]) -> Value {
-    let data = &messages[0].data[2..];
+    let Some(data) = messages[0].data.get(2..) else {
+        return Value::None;
+    };
     let readings: Vec<Reading> = table
         .iter()
         .filter_map(|sensor| {
@@ -1507,6 +1509,12 @@ mod tests {
             }
             other => panic!("expected Readings, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn sensors_reject_short_message() {
+        // A message without the mode and PID bytes is not a sensor payload.
+        assert_eq!(sensors(&msgs(&[0x41]), EGT_BANK), Value::None);
     }
 
     #[test]
